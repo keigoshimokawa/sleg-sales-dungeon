@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLEG SALES DUNGEON</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// --- API Configuration ---
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwnc0oXim0-UdNWWe7G4QHbUrGQKfSlDGwG655J2WdiXVHVF8dp5tETHcap8jtn7V0/exec';
+const BOSS_BG_IMAGE = 'cyber_saiyan_boss_bg_1773575562161.png';
+
+// --- Components ---
+
+// 0. Login / User Selection Screen
+const LoginScreen = ({ users, onSelect }) => {
+  return (
+    <div className="battle-container animation-fade-in" style={{flexDirection:'column'}}>
+      <div className="glass-container" style={{padding:'3rem', maxWidth:'450px', width:'100%', textAlign:'center'}}>
+        <h2 className="title-cyber" style={{color:'var(--color-primary)', marginBottom:'2rem'}}>WHO ARE YOU?</h2>
+        <p style={{color:'#aaa', marginBottom:'2rem', fontSize:'0.9rem'}}>このデバイスを利用するユーザーを選択してください。</p>
+        <div className="user-selection-list" style={{display:'flex', flexDirection:'column', gap:'10px', maxHeight:'300px', overflowY:'auto', padding:'5px'}}>
+          {users.map(u => (
+            <button key={u.id} className="nav-btn" style={{width:'100%', padding:'1rem', textAlign:'left', justifyContent:'flex-start'}} onClick={() => onSelect(u)}>
+              👤 {u.name}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 1. Request Modal (Boss & Player Shared)
+const RequestModal = ({ type, target, requesterName, onClose, onSubmit }) => {
+  const [slots, setSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [selectedSlot, setSelectedSlot] = useState('');
+  const [message, setMessage] = useState('');
+  const [errorMsg, setErrorMsg] = useState(''); // エラー理由を保持
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchSlots = async () => {
+      setSlotsLoading(true);
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ 
+            action: 'getAvailableSlots', 
+            requesterName: requesterName,
+            bossName: type === 'BOSS' ? target.bossName : target.name,
+            targetName: type === 'PLAYER' ? target.name : ''
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (data.slots?.length > 0) {
+            setSlots(data.slots);
+            setErrorMsg('');
+          } else {
+            setErrorMsg(data.error || '共通の空き時間が見つかりませんでした。');
+          }
+        } else {
+          setErrorMsg(data.error || '通信エラーが発生しました。');
+        }
+      } catch (e) { setErrorMsg('サーバーとの通信に失敗しました。'); }
+      setSlotsLoading(false);
+    };
+    fetchSlots();
+  }, [target]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedSlot) return alert('日時を選択してください');
+    setIsSubmitting(true);
+    await onSubmit({ selectedSlot, message, targetName: type === 'BOSS' ? target.bossName : target.name, label: target.label || 'プレイヤー間ロープレ' });
+    setIsSubmitting(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box glass-container animation-fade-in shadow-premium" style={{
+          backgroundImage: type === 'BOSS' ? `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.8)), url(${BOSS_BG_IMAGE})` : 'none',
+          backgroundSize: 'cover', backgroundPosition: 'center', borderColor: type === 'BOSS' ? 'var(--color-gold)' : 'var(--color-primary)'
+      }}>
+        <button className="modal-close-btn" onClick={onClose}>✕</button>
+        <div className="modal-boss-header">
+           <div className={`boss-avatar-img ${target.colorClass || ''}`} style={{
+               width:'80px', height:'80px', fontSize:'2rem', display:'flex', alignItems:'center', justifyContent:'center', 
+               background:'rgba(0,255,204,0.1)', borderRadius:'50%', border:`2px solid ${type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}`,
+               boxShadow: `0 0 15px ${type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}`
+           }}>{type === 'BOSS' ? '⚔️' : '🤝'}</div>
+            <div style={{flex:1}}>
+              <div className="boss-label" style={{color: type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}}>{type === 'BOSS' ? 'BOSS CHALLENGE' : 'PLAYER REQUEST'}</div>
+              <h2 className="title-cyber" style={{margin:0, fontSize:'1.8rem', color:'white'}}>{type === 'BOSS' ? target.bossName : target.name}</h2>
+              <div style={{color:'#eee', fontSize:'0.9rem'}}>{target.label || 'ロープレ（練習）'}</div>
+            </div>
+        </div>
+        <form onSubmit={handleSubmit} style={{position:'relative', zIndex:10}}>
+          <div className="form-group">
+            <label className="form-label" style={{color: type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}}>📅 共通の空き時間 (30分単位)</label>
+            <div className="slot-list" style={{background:'rgba(0,0,0,0.6)', borderRadius:'8px', padding:'10px', maxHeight:'200px', overflowY:'auto'}}>
+              {slotsLoading ? <div className="loader-pulse">空き枠を探しています...</div> : 
+                slots.length > 0 ? slots.map(s => (
+                  <button key={s} type="button" className={`slot-btn ${selectedSlot === s ? 'selected' : ''}`} 
+                    style={selectedSlot === s ? {borderColor: type==='BOSS'?'var(--color-gold)':'var(--color-primary)', color: type==='BOSS'?'var(--color-gold)':'var(--color-primary)'} : {}}
+                    onClick={() => setSelectedSlot(s)}>
+                    {s}
+                  </button>
+                )) : <div style={{color:'#ff4444', textAlign:'center', padding:'10px', fontSize:'0.85rem'}}>{errorMsg}</div>
+              }
+            </div>
+          </div>
+          <div className="form-group" style={{marginTop:'1rem'}}>
+             <label className="form-label">メッセージ</label>
+             <textarea className="form-control" style={{background:'rgba(0,0,0,0.8)'}} placeholder="よろしくお願いします！" value={message} onChange={e => setMessage(e.target.value)} />
+          </div>
+          <button type="submit" className={type==='BOSS' ? 'btn-danger' : 'btn-primary'} style={{
+              width:'100%', padding:'1rem', marginTop:'1.5rem', fontSize:'1.1rem', 
+              boxShadow: type==='BOSS' ? '0 0 15px rgba(255,0,85,0.4)' : '0 0 15px rgba(0,255,204,0.4)'
+          }} disabled={isSubmitting}>{isSubmitting ? '送信中...' : type==='BOSS' ? '挑戦状を送る ⚡️' : 'ロープレを申し込む 🤝'}</button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// 2. Master Admin View
+const MasterAdminPage = ({ users, onSaveUser, onAddUser, isSubmitting }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
+  const [newName, setNewName] = useState('');
+
+  const startEdit = (u) => { setEditingId(u.id); setEditData({ ...u }); };
+  const cancelEdit = () => { setEditingId(null); setEditData({}); };
+  const handleChange = (field, value) => { setEditData(prev => ({ ...prev, [field]: value })); };
+  const handleSave = async () => { 
+    if (!editData.name) return alert('名前は必須です');
+    const success = await onSaveUser(editData); 
+    if (success) setEditingId(null); 
+  };
+
+  return (
+    <div className="stats-container animation-fade-in" style={{flexDirection: 'column', gap:'2rem', width:'100%'}}>
+      <div className="glass-container" style={{padding: '2rem'}}>
+        <h2 className="title-cyber" style={{color: 'var(--color-primary)'}}>MASTER ADMIN</h2>
+        <form onSubmit={(e) => { e.preventDefault(); onAddUser(newName); setNewName(''); }} style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
+          <input type="text" className="form-control" placeholder="新しいメンバー名" value={newName} onChange={e => setNewName(e.target.value)} required />
+          <button type="submit" className="btn-primary" disabled={isSubmitting}>＋ 新規追加</button>
+        </form>
+      </div>
+      <div className="glass-container" style={{overflowX: 'auto', padding:'1rem'}}>
+        <table className="admin-table">
+          <thead><tr><th>名前</th><th>階層</th><th>メール</th><th>SlackID</th><th>操作</th></tr></thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id}>
+                <td style={{fontWeight:'bold'}}>{u.name}</td>
+                <td>{editingId === u.id ? (
+                  <select className="form-control" value={editData.currentLevel} onChange={e => handleChange('currentLevel', e.target.value)}>
+                    <option value="LEVEL0">LEVEL0</option>
+                    <option value="LEVEL1">LEVEL1</option>
+                    <option value="LEVEL2">LEVEL2</option>
+                    <option value="LEVEL3">LEVEL3</option>
+                  </select>
+                ) : u.currentLevel}</td>
+                <td>{editingId === u.id ? <input className="form-control" value={editData.email || ''} onChange={e => handleChange('email', e.target.value)} /> : u.email || '-'}</td>
+                <td>{editingId === u.id ? <input className="form-control" value={editData.slackId || ''} onChange={e => handleChange('slackId', e.target.value)} /> : u.slackId || '-'}</td>
+                <td>
+                  {editingId === u.id ? (
+                    <div style={{display:'flex', gap:'5px'}}>
+                      <button className="btn-primary" onClick={handleSave} disabled={isSubmitting}>保存</button>
+                      <button className="btn-primary" onClick={cancelEdit} style={{opacity:0.6}}>取消</button>
+                    </div>
+                  ) : <button className="btn-primary" onClick={() => startEdit(u)}>編集</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// 3. Dungeon Map
+const DungeonMap = ({ users, myName, onBossClick, onPlayerClick }) => {
+  const MAP_NODES = [
+    { level: 'LEVEL0', bossName: 'OKAYAMA', x: 30, y: 85, label: 'L0: 非言語', colorClass: 'boss-l0' },
+    { level: 'LEVEL1', bossName: 'SHIMOKAWA', x: 70, y: 60, label: 'L1: 関係構築', colorClass: 'boss-l1' },
+    { level: 'LEVEL2', bossName: 'TOP SALES A', x: 35, y: 35, label: 'L2: ヒアリング(SP)', colorClass: 'boss-l2' },
+    { level: 'LEVEL3', bossName: '代表取締役', x: 50, y: 10, label: 'L3: ヒアリング(IN)', colorClass: 'boss-l3' }
+  ];
+
+  const usersByLevel = {};
+  users.forEach(u => {
+    const lvl = (u.currentLevel || '').toUpperCase();
+    if (!usersByLevel[lvl]) usersByLevel[lvl] = [];
+    usersByLevel[lvl].push(u);
+  });
+
+  return (
+    <div className="map-view-layout" style={{display:'flex', height:'100%', width:'100%'}}>
+      <div className="map-canvas" style={{flex:1}}>
+        <div className="map-inner">
+          {MAP_NODES.map((node, idx) => {
+             const levelUsers = usersByLevel[node.level] || [];
+             return (
+              <div key={idx} className="map-node" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
+                <div className="boss-ui" onClick={() => onBossClick(node)} style={{cursor:'pointer', textAlign:'center'}}>
+                  <div className="boss-label">BOSS</div>
+                  <div className={`boss-avatar-img ${node.colorClass}`} style={{width:'60px', height:'60px', borderRadius:'50%', border:'2px solid var(--color-gold)', display:'flex', alignItems:'center', justifyContent:'center'}}>⚔️</div>
+                  <div className="boss-name-plate">{node.bossName}</div>
+                </div>
+                <div className="avatar-container">
+                  {levelUsers.map(u => (
+                    <div key={u.id} className={`user-avatar ${u.name === myName ? 'is-me' : ''}`} title={u.name} onClick={() => onPlayerClick(u)}>
+                      {u.avatarUrl ? <img src={u.avatarUrl} className="avatar-img" /> : u.name.substring(0,2)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="leaderboard-sidebar glass-container">
+        <h3 className="title-cyber" style={{padding:'1.2rem', color:'var(--color-primary)', borderBottom:'1px solid var(--glass-border)'}}>🏆 LEADERBOARD</h3>
+        <div className="leaderboard-content">
+          {[...users].sort((a,b) => b.exp - a.exp).map((u, i) => (
+            <div key={u.id} className={`lb-user-card ${u.name === myName ? 'is-me' : ''}`} onClick={() => u.name !== myName && onPlayerClick(u)} style={{cursor: u.name !== myName ? 'pointer' : 'default'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                 <div><span style={{color:'var(--color-gold)', fontWeight:'bold'}}>#{i+1}</span> <span style={{fontWeight:'bold'}}>{u.name}</span></div>
+                 <span style={{color:'var(--color-primary)', fontWeight:'bold'}}>{u.exp}</span>
+              </div>
+              <div className="exp-container"><div className="exp-bar" style={{width: `${Math.min(100, (u.exp % 1000) / 10)}%`}}></div></div>
+              <div style={{fontSize:'0.7rem', color:'#aaa', marginTop:'4px'}}>📍 {u.currentLevel}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ... (StatsPage and BattleScreen remain similar to previous but simplified for brevity in this step)
+const StatsPage = ({ logs, users, myName }) => {
+  const chartRef = useRef(null);
+  const user = users.find(u => u.name === myName);
+
+  useEffect(() => {
+    const ctx = document.getElementById('radarChart');
+    if (!ctx) return;
+    if (chartRef.current) chartRef.current.destroy();
+    
+    // Skill calculation logic (Relation, Empathy, Hearing, Presentation, Closing)
+    const skills = [3, 4, 2, 5, 3]; // Mocked for this view step
+    chartRef.current = new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: ['関係構築', '共感賞賛', 'ヒアリング', 'プレゼン', 'クロージング'],
+        datasets: [{ label: 'Skills', data: skills, backgroundColor: 'rgba(0, 255, 204, 0.2)', borderColor: '#00ffcc', borderWidth: 2 }]
+      },
+      options: { scales: { r: { grid:{color:'rgba(255,255,255,0.1)'}, ticks:{display:false, max:5, min:0} } }, plugins: { legend:{display:false} } }
+    });
+  }, [logs]);
+
+  const myLogs = logs.filter(l => l['ユーザー名'] === myName);
+
+  return (
+    <div className="stats-container animation-fade-in" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+       <div className="radar-section glass-container" style={{textAlign:'center', padding:'20px'}}>
+          <h2 className="title-cyber" style={{color:'var(--color-primary)'}}>SKILL RADAR</h2>
+          <canvas id="radarChart" style={{maxWidth:'300px', margin:'20px auto'}}></canvas>
+       </div>
+       <div className="history-section glass-container" style={{padding:'20px', overflowY:'auto'}}>
+          <h2 className="title-cyber" style={{color:'var(--color-primary)', marginBottom:'1rem'}}>HISTORY</h2>
+          {myLogs.length > 0 ? myLogs.map((log, i) => (
+            <div key={i} style={{borderBottom:'1px solid #333', padding:'10px 0'}}>
+              <div style={{fontWeight:'bold'}}>VS {log['相手']} <span style={{fontSize:'0.8rem', color: log['合否'] === '合格' ? 'var(--color-primary)' : 'var(--color-secondary)'}}>{log['合否']}</span></div>
+              <div style={{fontSize:'0.8rem', color:'#888'}}>{log['実施日']}</div>
+            </div>
+          )) : <div style={{color:'#555', fontStyle:'italic'}}>履歴がまだありません</div>}
+       </div>
+    </div>
+  );
+};
+
+const BattleScreen = ({ myName, onBattleComplete, isSubmitting }) => {
+  const [formData, setFormData] = useState({ partner: '', type: '通常', passed: true, feedback: '' });
+  return (
+     <div className="battle-container animation-fade-in">
+       <div className="glass-container" style={{padding:'2rem', maxWidth:'500px', width:'100%'}}>
+          <h2 className="title-cyber">BATTLE RESULTS</h2>
+          <div className="form-group"><label className="form-label">対戦相手</label><input className="form-control" value={formData.partner} onChange={e => setFormData({...formData, partner:e.target.value})} required /></div>
+          <div className="form-group"><label className="form-label">合否</label><select className="form-control" value={formData.passed} onChange={e => setFormData({...formData, passed: e.target.value==='true'})}><option value="true">合格</option><option value="false">不合格</option></select></div>
+          <button className="btn-danger" style={{width:'100%', marginTop:'2rem'}} onClick={() => onBattleComplete(formData)} disabled={isSubmitting}>記録を保存 🏁</button>
+       </div>
+    </div>
+  );
+};
+
+// --- MAIN APP COMPONENT ---
+const App = () => {
+  const [currentView, setCurrentView] = useState('MAP');
+  const [users, setUsers] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [myIdentity, setMyIdentity] = useState(null);
+  
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [selectedBoss, setSelectedBoss] = useState(null);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  // Initialize: Load identity from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('sleg_identity');
+    if (saved) setMyIdentity(JSON.parse(saved));
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    try {
+      const res = await fetch(`${GAS_URL}?_=${Date.now()}`);
+      const data = await res.json();
+      if (data.users) {
+        setUsers(data.users.map((u, i) => ({
+          id: u['ユーザー名'] || `u${i}`, name: u['ユーザー名'] || 'Unknown', 
+          currentLevel: (u['現在の階層'] || 'LEVEL0'),
+          email: u['メールアドレス'] || '', slackId: u['SlackID'] || '',
+          exp: parseInt(u['総合EXP'] || 0), avatarUrl: u['アイコン画像URL'] || null
+        })));
+      }
+      setLogs(data.logs || []);
+    } catch (e) { console.error('Fetch Error:', e); }
+    setIsLoading(false);
+  };
+
+  const handleLogin = (user) => {
+    setMyIdentity(user);
+    localStorage.setItem('sleg_identity', JSON.stringify(user));
+  };
+
+  const logout = () => {
+    if(confirm('ユーザー選択画面に戻りますか？')) {
+      localStorage.removeItem('sleg_identity');
+      setMyIdentity(null);
+    }
+  };
+
+  const handleSaveUser = async (u) => {
+    setIsSubmitting(true);
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveUser', ...u }) });
+    const d = await res.json();
+    if (d.success) { setToastMessage('保存完了'); setShowToast(true); setTimeout(()=>setShowToast(false),3000); await fetchAllData(); return true; }
+    setIsSubmitting(false); return false;
+  };
+
+  const handleAddUser = async (name) => {
+    setIsSubmitting(true);
+    await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'addUser', name }) });
+    await fetchAllData(); setIsSubmitting(false);
+  };
+
+  const handleRequestSubmit = async (data) => {
+    const action = selectedBoss ? 'bossBattleRequest' : 'playerRequest';
+    const body = selectedBoss ? 
+      { action, userFullName: myIdentity.name, bossName: data.targetName, date1: data.selectedSlot, message: data.message, label: data.label } :
+      { action, requesterName: myIdentity.name, targetName: data.targetName, selectedSlot: data.selectedSlot, message: data.message };
+
+    const res = await fetch(GAS_URL, { method: 'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) });
+    const d = await res.json();
+    if (d.success) { alert('リクエスト完了！ SlackとGoogleカレンダーを確認してください。'); setSelectedBoss(null); setSelectedPlayer(null); }
+  };
+
+  if (isLoading) return <div className="loader-pulse" style={{textAlign:'center', marginTop:'45vh'}}>INITIALIZING DUNGEON...</div>;
+
+  if (!myIdentity) return <LoginScreen users={users} onSelect={handleLogin} />;
+
+  return (
+    <React.Fragment>
+      <header className="nav-header glass-container">
+        <h1 className="title-cyber" style={{margin:0, fontSize:'1.4rem'}}>SLEG <span style={{color:'var(--color-primary)'}}>SALES</span> DUNGEON</h1>
+        <div className="nav-links">
+          <button className={`nav-btn ${currentView === 'MAP'?'active':''}`} onClick={() => setCurrentView('MAP')}>MAP</button>
+          <button className={`nav-btn ${currentView === 'STATS'?'active':''}`} onClick={() => setCurrentView('STATS')}>STATS</button>
+          <button className={`nav-btn ${currentView === 'MASTER'?'active':''}`} onClick={() => setCurrentView('MASTER')}>MASTER</button>
+          <button className="nav-btn" onClick={logout} style={{opacity:0.6, fontSize:'0.8rem'}}>LOGOUT</button>
+        </div>
+      </header>
+
+      <main className="app-content">
+        {currentView === 'MAP' && <DungeonMap users={users} myName={myIdentity.name} onBossClick={setSelectedBoss} onPlayerClick={setSelectedPlayer} />}
+        {currentView === 'STATS' && <StatsPage logs={logs} users={users} myName={myIdentity.name} />}
+        {currentView === 'MASTER' && <MasterAdminPage users={users} onSaveUser={handleSaveUser} onAddUser={handleAddUser} isSubmitting={isSubmitting} />}
+        {currentView === 'BATTLE' && <BattleScreen myName={myIdentity.name} onBattleComplete={async (d) => { setIsSubmitting(true); await fetch(GAS_URL, {method:'POST', body:JSON.stringify({...d, userFullName:myIdentity.name})}); await fetchAllData(); setCurrentView('MAP'); setIsSubmitting(false); }} isSubmitting={isSubmitting} />}
+      </main>
+
+      <footer style={{position:'fixed', bottom:'10px', left:'10px', fontSize:'0.8rem', color:'#555', zIndex:100}}>
+        PLAYER: <span style={{color:'var(--color-primary)'}}>{myIdentity.name}</span>
+      </footer>
+
+      {selectedBoss && <RequestModal type="BOSS" target={selectedBoss} requesterName={myIdentity.name} onClose={()=>setSelectedBoss(null)} onSubmit={handleRequestSubmit} />}
+      {selectedPlayer && <RequestModal type="PLAYER" target={selectedPlayer} requesterName={myIdentity.name} onClose={()=>setSelectedPlayer(null)} onSubmit={handleRequestSubmit} />}
+      <div className={`toast ${showToast ? 'show' : ''}`}>{toastMessage}</div>
+    </React.Fragment>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
