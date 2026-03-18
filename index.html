@@ -1,436 +1,1477 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SLEG SALES DUNGEON</title>
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLEG SALES DUNGEON</title>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- PeerJS for Realtime P2P -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
+
 <body>
-    <div id="root"></div>
+  <div id="root"></div>
 
-    <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-// --- API Configuration ---
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwnc0oXim0-UdNWWe7G4QHbUrGQKfSlDGwG655J2WdiXVHVF8dp5tETHcap8jtn7V0/exec';
-const BOSS_BG_IMAGE = 'cyber_saiyan_boss_bg_1773575562161.png';
+    // --- API Configuration ---
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxZynlv0W2SfQ5V6-0pXrhZ0PupFFOOfErXtSrPhdwblmpEwdoF9Vxs5MWl6IFhO2M/exec';
+    const BOSS_BG_IMAGE = 'cyber_saiyan_boss_bg_1773575562161.png';
 
-// --- Components ---
+    // --- Components ---
 
-// 0. Login / User Selection Screen
-const LoginScreen = ({ users, onSelect }) => {
-  return (
-    <div className="battle-container animation-fade-in" style={{flexDirection:'column'}}>
-      <div className="glass-container" style={{padding:'3rem', maxWidth:'450px', width:'100%', textAlign:'center'}}>
-        <h2 className="title-cyber" style={{color:'var(--color-primary)', marginBottom:'2rem'}}>WHO ARE YOU?</h2>
-        <p style={{color:'#aaa', marginBottom:'2rem', fontSize:'0.9rem'}}>このデバイスを利用するユーザーを選択してください。</p>
-        <div className="user-selection-list" style={{display:'flex', flexDirection:'column', gap:'10px', maxHeight:'300px', overflowY:'auto', padding:'5px'}}>
-          {users.map(u => (
-            <button key={u.id} className="nav-btn" style={{width:'100%', padding:'1rem', textAlign:'left', justifyContent:'flex-start'}} onClick={() => onSelect(u)}>
-              👤 {u.name}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
+    // 0. Login / User Selection Screen
+    const LoginScreen = ({ users, onSelect, onAddUser }) => {
+      const [showAdd, setShowAdd] = useState(false);
+      const [newName, setNewName] = useState('');
+      const [selectedUser, setSelectedUser] = useState(null);
+      const [password, setPassword] = useState('');
+      const [pwError, setPwError] = useState(false);
+      const [isVerifying, setIsVerifying] = useState(false);
 
-// 1. Request Modal (Boss & Player Shared)
-const RequestModal = ({ type, target, requesterName, onClose, onSubmit }) => {
-  const [slots, setSlots] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState('');
-  const [message, setMessage] = useState('');
-  const [errorMsg, setErrorMsg] = useState(''); // エラー理由を保持
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    const fetchSlots = async () => {
-      setSlotsLoading(true);
-      try {
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ 
-            action: 'getAvailableSlots', 
-            requesterName: requesterName,
-            bossName: type === 'BOSS' ? target.bossName : target.name,
-            targetName: type === 'PLAYER' ? target.name : ''
-          })
-        });
-        const data = await res.json();
-        if (data.success) {
-          if (data.slots?.length > 0) {
-            setSlots(data.slots);
-            setErrorMsg('');
-          } else {
-            setErrorMsg(data.error || '共通の空き時間が見つかりませんでした。');
-          }
+      const handleUserClick = (u) => {
+        // パスワードが設定されているユーザーはパスワード入力を要求
+        if (u.hasPassword) {
+          setSelectedUser(u);
+          setPassword('');
+          setPwError(false);
         } else {
-          setErrorMsg(data.error || '通信エラーが発生しました。');
+          onSelect(u);
         }
-      } catch (e) { setErrorMsg('サーバーとの通信に失敗しました。'); }
-      setSlotsLoading(false);
-    };
-    fetchSlots();
-  }, [target]);
+      };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedSlot) return alert('日時を選択してください');
-    setIsSubmitting(true);
-    await onSubmit({ selectedSlot, message, targetName: type === 'BOSS' ? target.bossName : target.name, label: target.label || 'プレイヤー間ロープレ' });
-    setIsSubmitting(false);
-  };
+      const handlePasswordSubmit = async (e) => {
+        e.preventDefault();
+        setIsVerifying(true);
+        setPwError(false);
+        const result = await onSelect(selectedUser, password);
+        if (result === false) {
+          setPwError(true);
+        }
+        setIsVerifying(false);
+      };
 
-  return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box glass-container animation-fade-in shadow-premium" style={{
-          backgroundImage: type === 'BOSS' ? `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.8)), url(${BOSS_BG_IMAGE})` : 'none',
-          backgroundSize: 'cover', backgroundPosition: 'center', borderColor: type === 'BOSS' ? 'var(--color-gold)' : 'var(--color-primary)'
-      }}>
-        <button className="modal-close-btn" onClick={onClose}>✕</button>
-        <div className="modal-boss-header">
-           <div className={`boss-avatar-img ${target.colorClass || ''}`} style={{
-               width:'80px', height:'80px', fontSize:'2rem', display:'flex', alignItems:'center', justifyContent:'center', 
-               background:'rgba(0,255,204,0.1)', borderRadius:'50%', border:`2px solid ${type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}`,
-               boxShadow: `0 0 15px ${type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}`
-           }}>{type === 'BOSS' ? '⚔️' : '🤝'}</div>
-            <div style={{flex:1}}>
-              <div className="boss-label" style={{color: type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}}>{type === 'BOSS' ? 'BOSS CHALLENGE' : 'PLAYER REQUEST'}</div>
-              <h2 className="title-cyber" style={{margin:0, fontSize:'1.8rem', color:'white'}}>{type === 'BOSS' ? target.bossName : target.name}</h2>
-              <div style={{color:'#eee', fontSize:'0.9rem'}}>{target.label || 'ロープレ（練習）'}</div>
-            </div>
-        </div>
-        <form onSubmit={handleSubmit} style={{position:'relative', zIndex:10}}>
-          <div className="form-group">
-            <label className="form-label" style={{color: type==='BOSS'?'var(--color-gold)':'var(--color-primary)'}}>📅 共通の空き時間 (30分単位)</label>
-            <div className="slot-list" style={{background:'rgba(0,0,0,0.6)', borderRadius:'8px', padding:'10px', maxHeight:'200px', overflowY:'auto'}}>
-              {slotsLoading ? <div className="loader-pulse">空き枠を探しています...</div> : 
-                slots.length > 0 ? slots.map(s => (
-                  <button key={s} type="button" className={`slot-btn ${selectedSlot === s ? 'selected' : ''}`} 
-                    style={selectedSlot === s ? {borderColor: type==='BOSS'?'var(--color-gold)':'var(--color-primary)', color: type==='BOSS'?'var(--color-gold)':'var(--color-primary)'} : {}}
-                    onClick={() => setSelectedSlot(s)}>
-                    {s}
-                  </button>
-                )) : <div style={{color:'#ff4444', textAlign:'center', padding:'10px', fontSize:'0.85rem'}}>{errorMsg}</div>
-              }
+      // パスワード入力画面
+      if (selectedUser) {
+        return (
+          <div className="battle-container animation-fade-in" style={{ flexDirection: 'column' }}>
+            <div className="glass-container" style={{ padding: '3rem', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+              <h2 className="title-cyber" style={{ color: 'var(--color-primary)', marginBottom: '0.5rem' }}>LOGIN</h2>
+              <p style={{ color: '#aaa', marginBottom: '2rem', fontSize: '1rem' }}>👤 {selectedUser.name}</p>
+              <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <input
+                  type="password"
+                  className="form-control"
+                  placeholder="パスワードを入力"
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setPwError(false); }}
+                  autoFocus
+                  required
+                  style={{ textAlign: 'center', letterSpacing: '4px', fontSize: '1.2rem', borderColor: pwError ? 'var(--color-secondary)' : undefined }}
+                />
+                {pwError && <p style={{ color: 'var(--color-secondary)', fontSize: '0.85rem', margin: 0 }}>❌ パスワードが違います</p>}
+                <button type="submit" className="btn-primary" style={{ padding: '1rem' }} disabled={isVerifying}>
+                  {isVerifying ? '確認中...' : 'ログイン ▶'}
+                </button>
+              </form>
+              <button className="nav-btn" style={{ marginTop: '1.5rem', fontSize: '0.8rem', opacity: 0.6 }} onClick={() => { setSelectedUser(null); setPassword(''); setPwError(false); }}>
+                ← 戻る
+              </button>
             </div>
           </div>
-          <div className="form-group" style={{marginTop:'1rem'}}>
-             <label className="form-label">メッセージ</label>
-             <textarea className="form-control" style={{background:'rgba(0,0,0,0.8)'}} placeholder="よろしくお願いします！" value={message} onChange={e => setMessage(e.target.value)} />
-          </div>
-          <button type="submit" className={type==='BOSS' ? 'btn-danger' : 'btn-primary'} style={{
-              width:'100%', padding:'1rem', marginTop:'1.5rem', fontSize:'1.1rem', 
-              boxShadow: type==='BOSS' ? '0 0 15px rgba(255,0,85,0.4)' : '0 0 15px rgba(0,255,204,0.4)'
-          }} disabled={isSubmitting}>{isSubmitting ? '送信中...' : type==='BOSS' ? '挑戦状を送る ⚡️' : 'ロープレを申し込む 🤝'}</button>
-        </form>
-      </div>
-    </div>
-  );
-};
+        );
+      }
 
-// 2. Master Admin View
-const MasterAdminPage = ({ users, onSaveUser, onAddUser, isSubmitting }) => {
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({});
-  const [newName, setNewName] = useState('');
+      return (
+        <div className="battle-container animation-fade-in" style={{ flexDirection: 'column' }}>
+          <div className="glass-container" style={{ padding: '3rem', maxWidth: '450px', width: '100%', textAlign: 'center' }}>
+            <h2 className="title-cyber" style={{ color: 'var(--color-primary)', marginBottom: '2rem' }}>WHO ARE YOU?</h2>
 
-  const startEdit = (u) => { setEditingId(u.id); setEditData({ ...u }); };
-  const cancelEdit = () => { setEditingId(null); setEditData({}); };
-  const handleChange = (field, value) => { setEditData(prev => ({ ...prev, [field]: value })); };
-  const handleSave = async () => { 
-    if (!editData.name) return alert('名前は必須です');
-    const success = await onSaveUser(editData); 
-    if (success) setEditingId(null); 
-  };
-
-  return (
-    <div className="stats-container animation-fade-in" style={{flexDirection: 'column', gap:'2rem', width:'100%'}}>
-      <div className="glass-container" style={{padding: '2rem'}}>
-        <h2 className="title-cyber" style={{color: 'var(--color-primary)'}}>MASTER ADMIN</h2>
-        <form onSubmit={(e) => { e.preventDefault(); onAddUser(newName); setNewName(''); }} style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
-          <input type="text" className="form-control" placeholder="新しいメンバー名" value={newName} onChange={e => setNewName(e.target.value)} required />
-          <button type="submit" className="btn-primary" disabled={isSubmitting}>＋ 新規追加</button>
-        </form>
-      </div>
-      <div className="glass-container" style={{overflowX: 'auto', padding:'1rem'}}>
-        <table className="admin-table">
-          <thead><tr><th>名前</th><th>階層</th><th>メール</th><th>SlackID</th><th>操作</th></tr></thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id}>
-                <td style={{fontWeight:'bold'}}>{u.name}</td>
-                <td>{editingId === u.id ? (
-                  <select className="form-control" value={editData.currentLevel} onChange={e => handleChange('currentLevel', e.target.value)}>
-                    <option value="LEVEL0">LEVEL0</option>
-                    <option value="LEVEL1">LEVEL1</option>
-                    <option value="LEVEL2">LEVEL2</option>
-                    <option value="LEVEL3">LEVEL3</option>
-                  </select>
-                ) : u.currentLevel}</td>
-                <td>{editingId === u.id ? <input className="form-control" value={editData.email || ''} onChange={e => handleChange('email', e.target.value)} /> : u.email || '-'}</td>
-                <td>{editingId === u.id ? <input className="form-control" value={editData.slackId || ''} onChange={e => handleChange('slackId', e.target.value)} /> : u.slackId || '-'}</td>
-                <td>
-                  {editingId === u.id ? (
-                    <div style={{display:'flex', gap:'5px'}}>
-                      <button className="btn-primary" onClick={handleSave} disabled={isSubmitting}>保存</button>
-                      <button className="btn-primary" onClick={cancelEdit} style={{opacity:0.6}}>取消</button>
-                    </div>
-                  ) : <button className="btn-primary" onClick={() => startEdit(u)}>編集</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-// 3. Dungeon Map
-const DungeonMap = ({ users, myName, onBossClick, onPlayerClick }) => {
-  const MAP_NODES = [
-    { level: 'LEVEL0', bossName: 'OKAYAMA', x: 30, y: 85, label: 'L0: 非言語', colorClass: 'boss-l0' },
-    { level: 'LEVEL1', bossName: 'SHIMOKAWA', x: 70, y: 60, label: 'L1: 関係構築', colorClass: 'boss-l1' },
-    { level: 'LEVEL2', bossName: 'TOP SALES A', x: 35, y: 35, label: 'L2: ヒアリング(SP)', colorClass: 'boss-l2' },
-    { level: 'LEVEL3', bossName: '代表取締役', x: 50, y: 10, label: 'L3: ヒアリング(IN)', colorClass: 'boss-l3' }
-  ];
-
-  const usersByLevel = {};
-  users.forEach(u => {
-    const lvl = (u.currentLevel || '').toUpperCase();
-    if (!usersByLevel[lvl]) usersByLevel[lvl] = [];
-    usersByLevel[lvl].push(u);
-  });
-
-  return (
-    <div className="map-view-layout" style={{display:'flex', height:'100%', width:'100%'}}>
-      <div className="map-canvas" style={{flex:1}}>
-        <div className="map-inner">
-          {MAP_NODES.map((node, idx) => {
-             const levelUsers = usersByLevel[node.level] || [];
-             return (
-              <div key={idx} className="map-node" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
-                <div className="boss-ui" onClick={() => onBossClick(node)} style={{cursor:'pointer', textAlign:'center'}}>
-                  <div className="boss-label">BOSS</div>
-                  <div className={`boss-avatar-img ${node.colorClass}`} style={{width:'60px', height:'60px', borderRadius:'50%', border:'2px solid var(--color-gold)', display:'flex', alignItems:'center', justifyContent:'center'}}>⚔️</div>
-                  <div className="boss-name-plate">{node.bossName}</div>
+            {users.length > 0 ? (
+              <React.Fragment>
+                <p style={{ color: '#aaa', marginBottom: '2rem', fontSize: '0.9rem' }}>このデバイスを利用するユーザーを選択してください。</p>
+                <div className="user-selection-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', padding: '5px' }}>
+                  {users.map(u => (
+                    <button key={u.id} className="nav-btn" style={{ width: '100%', padding: '1rem', textAlign: 'left', justifyContent: 'flex-start' }} onClick={() => handleUserClick(u)}>
+                      {u.hasPassword ? '🔐' : '👤'} {u.name}
+                    </button>
+                  ))}
                 </div>
-                <div className="avatar-container">
-                  {levelUsers.map(u => (
-                    <div key={u.id} className={`user-avatar ${u.name === myName ? 'is-me' : ''}`} title={u.name} onClick={() => onPlayerClick(u)}>
-                      {u.avatarUrl ? <img src={u.avatarUrl} className="avatar-img" /> : u.name.substring(0,2)}
+                <button className="nav-btn" style={{ marginTop: '2rem', fontSize: '0.8rem', opacity: 0.6 }} onClick={() => setShowAdd(!showAdd)}>
+                  {showAdd ? 'キャンセル' : '＋ 新規ユーザーを追加'}
+                </button>
+              </React.Fragment>
+            ) : (
+              <div style={{ color: '#ff4444', marginBottom: '2rem' }}>
+                <p>登録されているユーザーがいません。</p>
+                <p style={{ fontSize: '0.8rem' }}>最初のユーザーを作成してください。</p>
+              </div>
+            )}
+
+            {(showAdd || users.length === 0) && (
+              <form onSubmit={(e) => { e.preventDefault(); onAddUser(newName); setNewName(''); setShowAdd(false); }} style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
+                <input type="text" className="form-control" placeholder="名前を入力" value={newName} onChange={e => setNewName(e.target.value)} required />
+                <button type="submit" className="btn-primary">作成</button>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // 1. Request Modal (Boss & Player Shared) - DELETED
+
+    // 2. Master Admin View
+    const MasterAdminPage = ({ users, mapNodes, prompts, onSaveUser, onAddUser, onSaveMapNode, onSavePrompt, onDuoChallenge, isSubmitting }) => {
+      const [tab, setTab] = useState('USERS'); // 'USERS' | 'MAP' | 'PROMPTS'
+
+      // User edit state
+      const [editingId, setEditingId] = useState(null);
+      const [editData, setEditData] = useState({});
+      const [newName, setNewName] = useState('');
+
+      // Prompt edit state
+      const [editingLevel, setEditingLevel] = useState(null);
+      const [editPrompt, setEditPrompt] = useState('');
+
+      const startEdit = (u) => { setEditingId(u.id); setEditData({ ...u }); };
+      const cancelEdit = () => { setEditingId(null); setEditData({}); };
+      const handleChange = (field, value) => { setEditData(prev => ({ ...prev, [field]: value })); };
+      const handleSave = async () => {
+        if (!editData.name) return alert('名前は必須です');
+        const success = await onSaveUser(editData);
+        if (success) setEditingId(null);
+      };
+
+      const levels = ['LEVEL0', 'LEVEL1', 'LEVEL2', 'LEVEL3'];
+
+      return (
+        <div className="stats-container animation-fade-in" style={{ flexDirection: 'column' }}>
+          <div className="glass-container" style={{ padding: '2rem', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '2rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+              <button className={`nav-btn ${tab === 'USERS' ? 'active' : ''}`} onClick={() => setTab('USERS')}>👥 ユーザー</button>
+              <button className={`nav-btn ${tab === 'MAP' ? 'active' : ''}`} onClick={() => setTab('MAP')}>🗺️ マップ・ボス</button>
+              <button className={`nav-btn ${tab === 'PROMPTS' ? 'active' : ''}`} onClick={() => setTab('PROMPTS')}>✍️ AIプロンプト</button>
+            </div>
+
+            {tab === 'USERS' && (
+              <React.Fragment>
+                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>USER MANAGEMENT</h2>
+                <form onSubmit={(e) => { e.preventDefault(); onAddUser(newName); setNewName(''); }} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                  <input type="text" className="form-control" placeholder="新しいメンバー名" value={newName} onChange={e => setNewName(e.target.value)} required />
+                  <button type="submit" className="btn-primary" disabled={isSubmitting}>＋ 新規追加</button>
+                </form>
+                <table className="admin-table">
+                  <thead><tr><th>名</th><th>階層</th><th>権限</th><th>メール</th><th>パスワード</th><th>操作</th></tr></thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id}>
+                        <td style={{ fontWeight: 'bold' }}>{u.name}</td>
+                        <td>{editingId === u.id ? (
+                          <select className="form-control" value={editData.currentLevel} onChange={e => handleChange('currentLevel', e.target.value)}>
+                            {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        ) : u.currentLevel}</td>
+                        <td>{editingId === u.id ? (
+                          <select className="form-control" value={editData.role || ''} onChange={e => handleChange('role', e.target.value)}>
+                            <option value="PLAYER">PLAYER</option>
+                            <option value="BOSS">BOSS (評価者)</option>
+                            <option value="ADMIN">ADMIN (管理者)</option>
+                          </select>
+                        ) : u.role || 'PLAYER'}</td>
+                        <td>{editingId === u.id ? <input className="form-control" value={editData.email || ''} onChange={e => handleChange('email', e.target.value)} /> : u.email || '-'}</td>
+                        <td>{editingId === u.id ? (
+                          <input
+                            type="password"
+                            className="form-control"
+                            placeholder="新パスワード（空欄=変更なし）"
+                            value={editData.newPassword || ''}
+                            onChange={e => handleChange('newPassword', e.target.value)}
+                            style={{ minWidth: '160px' }}
+                          />
+                        ) : u.hasPassword ? <span style={{ color: 'var(--color-primary)', fontSize: '0.8rem' }}>🔐 設定済</span> : <span style={{ color: '#555', fontSize: '0.8rem' }}>未設定</span>}</td>
+                        <td>
+                          {editingId === u.id ? (
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button className="btn-primary" onClick={handleSave} disabled={isSubmitting}>保存</button>
+                              <button className="nav-btn" onClick={cancelEdit} style={{ padding: '2px 10px' }}>取消</button>
+                            </div>
+                          ) : <button className="btn-primary" onClick={() => startEdit(u)} style={{ padding: '2px 12px' }}>編集</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </React.Fragment>
+            )}
+
+            {tab === 'MAP' && (
+              <React.Fragment>
+                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>MAP & BOSS MANAGEMENT</h2>
+                <p style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1.5rem' }}>階層ごとの目標やクエスト、座標を編集できます。</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {mapNodes.map((node, i) => (
+                    <div key={i} className="glass-container" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '1rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--color-primary)' }}>階層 / 各階層名</label>
+                          <div style={{ display: 'flex', gap: '5px' }}>
+                            <span style={{ padding: '10px', fontWeight: '900', color: '#888' }}>{node.level}</span>
+                            <input className="form-control" value={node.label} onChange={(e) => onSaveMapNode(i, { ...node, label: e.target.value })} placeholder="ステージ名" />
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: 'var(--color-secondary)' }}>ボス名</label>
+                          <input className="form-control" value={node.bossName} onChange={(e) => onSaveMapNode(i, { ...node, bossName: e.target.value })} placeholder="ボス名" />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.7rem', color: '#888' }}>配置座標 (X% , Y%)</label>
+                          <div style={{ display: 'flex', gap: '5px' }}>
+                            <input type="number" className="form-control" value={node.x} onChange={(e) => onSaveMapNode(i, { ...node, x: parseInt(e.target.value) })} />
+                            <input type="number" className="form-control" value={node.y} onChange={(e) => onSaveMapNode(i, { ...node, y: parseInt(e.target.value) })} />
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--color-gold)' }}>達成目標 (MISSION GOAL)</label>
+                        <textarea className="form-control" rows="2" value={node.goals} onChange={(e) => onSaveMapNode(i, { ...node, goals: e.target.value })} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--color-gold)' }}>クエスト (QUESTS - 改行で区切り)</label>
+                        <textarea className="form-control" rows="3" value={(node.quests || []).join('\n')} onChange={(e) => onSaveMapNode(i, { ...node, quests: e.target.value.split('\n').filter(q => q.trim() !== '') })} />
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            );
-          })}
+              </React.Fragment>
+            )}
+
+            {tab === 'PROMPTS' && (
+              <React.Fragment>
+                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>AI EVALUATION PROMPTS</h2>
+
+                <div className="glass-container" style={{ padding: '1rem', marginBottom: '2rem', background: 'rgba(255,215,0,0.05)', border: '1px solid var(--color-gold)' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: 'var(--color-gold)', margin: 0 }}>🧪 PROMPT & VIDEO TEST</h3>
+                  <p style={{ fontSize: '0.7rem', color: '#aaa' }}>設定したプロンプトでAI判定や録画保存が正しく動くかテストできます。</p>
+                  <button className="btn-primary" style={{ marginTop: '10px' }} onClick={() => onDuoChallenge({ name: 'TEST_USER', isTest: true })}>
+                    テスト録画を開始する (TEST MODE)
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  {levels.map(lvl => {
+                    const pObj = (prompts || []).find(p => p['階層'] === lvl);
+                    const currentPrompt = pObj ? pObj['プロンプト'] : '未設定';
+                    return (
+                      <div key={lvl} style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                          <span style={{ fontWeight: '900', color: 'var(--color-primary)' }}>{lvl}</span>
+                          <button className="btn-primary" style={{ padding: '2px 10px' }} onClick={() => { setEditingLevel(lvl); setEditPrompt(currentPrompt); }}>編集</button>
+                        </div>
+                        {editingLevel === lvl ? (
+                          <div>
+                            <textarea className="form-control" rows="10" value={editPrompt} onChange={e => setEditPrompt(e.target.value)} />
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button className="btn-primary" onClick={async () => { await onSavePrompt(lvl, editPrompt); setEditingLevel(null); }}>保存</button>
+                              <button className="nav-btn" onClick={() => setEditingLevel(null)}>取消</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.8rem', color: '#888', whiteSpace: 'pre-wrap', maxHeight: '100px', overflow: 'hidden' }}>{currentPrompt}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </React.Fragment>
+            )}
+          </div>
         </div>
-      </div>
+      );
+    };
 
-      <div className="leaderboard-sidebar glass-container">
-        <h3 className="title-cyber" style={{padding:'1.2rem', color:'var(--color-primary)', borderBottom:'1px solid var(--glass-border)'}}>🏆 LEADERBOARD</h3>
-        <div className="leaderboard-content">
-          {[...users].sort((a,b) => b.exp - a.exp).map((u, i) => (
-            <div key={u.id} className={`lb-user-card ${u.name === myName ? 'is-me' : ''}`} onClick={() => u.name !== myName && onPlayerClick(u)} style={{cursor: u.name !== myName ? 'pointer' : 'default'}}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                 <div><span style={{color:'var(--color-gold)', fontWeight:'bold'}}>#{i+1}</span> <span style={{fontWeight:'bold'}}>{u.name}</span></div>
-                 <span style={{color:'var(--color-primary)', fontWeight:'bold'}}>{u.exp}</span>
+    // 2.7 Boss Grading View
+    const BossGradingPage = ({ logs, onEvaluate }) => {
+      const [selectedLog, setSelectedLog] = useState(null);
+      const [evalData, setEvalData] = useState({ score: 80, feedback: '', passed: true });
+      const [isSubmitting, setIsSubmitting] = useState(false);
+
+      // Filter logs that need boss evaluation (have Video URL and AI Clear, but no Boss Result yet)
+      const pendingLogs = logs.filter(l => l['動画URL'] && l['AI判定'] === '合格' && (!l['ボス判定'] || l['ボス判定'] === ''));
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        await onEvaluate({ ...evalData, videoUrl: selectedLog['動画URL'], userFullName: selectedLog['ユーザー名'] });
+        setSelectedLog(null);
+        setIsSubmitting(false);
+      };
+
+      if (selectedLog) {
+        return (
+          <div className="battle-container animation-fade-in" style={{ flexDirection: 'column' }}>
+            <div className="glass-container" style={{ padding: '2rem', maxWidth: '700px', width: '100%' }}>
+              <h2 className="title-cyber" style={{ color: 'var(--color-gold)' }}>FINAL EVALUATION: {selectedLog['ユーザー名']}</h2>
+              <div style={{ margin: '1rem 0', background: '#000', borderRadius: '10px', overflow: 'hidden' }}>
+                <video src={selectedLog['動画URL']} controls style={{ width: '100%', maxHeight: '300px' }} />
               </div>
-              <div className="exp-container"><div className="exp-bar" style={{width: `${Math.min(100, (u.exp % 1000) / 10)}%`}}></div></div>
-              <div style={{fontSize:'0.7rem', color:'#aaa', marginTop:'4px'}}>📍 {u.currentLevel}</div>
+              <div className="ai-feedback-box" style={{ marginBottom: '1.5rem' }}>
+                <strong style={{ color: 'var(--color-primary)' }}>AI Feedback:</strong><br />
+                {selectedLog['AIフィードバック']}
+              </div>
+              <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label className="form-label">最終スコア (0-100)</label>
+                  <div className="slider-container">
+                    <input type="range" min="0" max="100" value={evalData.score} onChange={e => setEvalData({ ...evalData, score: parseInt(e.target.value) })} />
+                    <span className={`slider-value ${evalData.score >= 80 ? 'max' : ''}`}>{evalData.score}</span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">判定</label>
+                  <select className="form-control" value={evalData.passed} onChange={e => setEvalData({ ...evalData, passed: e.target.value === 'true' })}>
+                    <option value="true">合格 (LEVEL UP)</option>
+                    <option value="false">不合格 (継続修行)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">ボス・コメント</label>
+                  <textarea className="form-control" rows="4" placeholder="アドバイスを入力..." value={evalData.feedback} onChange={e => setEvalData({ ...evalData, feedback: e.target.value })} required />
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem' }}>
+                  <button type="submit" className="btn-danger" style={{ flex: 1, padding: '1rem' }} disabled={isSubmitting}>{isSubmitting ? '記録中...' : '評価を確定する 🛡️'}</button>
+                  <button type="button" className="nav-btn" onClick={() => setSelectedLog(null)}>戻る</button>
+                </div>
+              </form>
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ... (StatsPage and BattleScreen remain similar to previous but simplified for brevity in this step)
-const StatsPage = ({ logs, users, myName }) => {
-  const chartRef = useRef(null);
-  const user = users.find(u => u.name === myName);
-
-  useEffect(() => {
-    const ctx = document.getElementById('radarChart');
-    if (!ctx) return;
-    if (chartRef.current) chartRef.current.destroy();
-    
-    // Skill calculation logic (Relation, Empathy, Hearing, Presentation, Closing)
-    const skills = [3, 4, 2, 5, 3]; // Mocked for this view step
-    chartRef.current = new Chart(ctx, {
-      type: 'radar',
-      data: {
-        labels: ['関係構築', '共感賞賛', 'ヒアリング', 'プレゼン', 'クロージング'],
-        datasets: [{ label: 'Skills', data: skills, backgroundColor: 'rgba(0, 255, 204, 0.2)', borderColor: '#00ffcc', borderWidth: 2 }]
-      },
-      options: { scales: { r: { grid:{color:'rgba(255,255,255,0.1)'}, ticks:{display:false, max:5, min:0} } }, plugins: { legend:{display:false} } }
-    });
-  }, [logs]);
-
-  const myLogs = logs.filter(l => l['ユーザー名'] === myName);
-
-  return (
-    <div className="stats-container animation-fade-in" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-       <div className="radar-section glass-container" style={{textAlign:'center', padding:'20px'}}>
-          <h2 className="title-cyber" style={{color:'var(--color-primary)'}}>SKILL RADAR</h2>
-          <canvas id="radarChart" style={{maxWidth:'300px', margin:'20px auto'}}></canvas>
-       </div>
-       <div className="history-section glass-container" style={{padding:'20px', overflowY:'auto'}}>
-          <h2 className="title-cyber" style={{color:'var(--color-primary)', marginBottom:'1rem'}}>HISTORY</h2>
-          {myLogs.length > 0 ? myLogs.map((log, i) => (
-            <div key={i} style={{borderBottom:'1px solid #333', padding:'10px 0'}}>
-              <div style={{fontWeight:'bold'}}>VS {log['相手']} <span style={{fontSize:'0.8rem', color: log['合否'] === '合格' ? 'var(--color-primary)' : 'var(--color-secondary)'}}>{log['合否']}</span></div>
-              <div style={{fontSize:'0.8rem', color:'#888'}}>{log['実施日']}</div>
-            </div>
-          )) : <div style={{color:'#555', fontStyle:'italic'}}>履歴がまだありません</div>}
-       </div>
-    </div>
-  );
-};
-
-const BattleScreen = ({ myName, onBattleComplete, isSubmitting }) => {
-  const [formData, setFormData] = useState({ partner: '', type: '通常', passed: true, feedback: '' });
-  return (
-     <div className="battle-container animation-fade-in">
-       <div className="glass-container" style={{padding:'2rem', maxWidth:'500px', width:'100%'}}>
-          <h2 className="title-cyber">BATTLE RESULTS</h2>
-          <div className="form-group"><label className="form-label">対戦相手</label><input className="form-control" value={formData.partner} onChange={e => setFormData({...formData, partner:e.target.value})} required /></div>
-          <div className="form-group"><label className="form-label">合否</label><select className="form-control" value={formData.passed} onChange={e => setFormData({...formData, passed: e.target.value==='true'})}><option value="true">合格</option><option value="false">不合格</option></select></div>
-          <button className="btn-danger" style={{width:'100%', marginTop:'2rem'}} onClick={() => onBattleComplete(formData)} disabled={isSubmitting}>記録を保存 🏁</button>
-       </div>
-    </div>
-  );
-};
-
-// --- MAIN APP COMPONENT ---
-const App = () => {
-  const [currentView, setCurrentView] = useState('MAP');
-  const [users, setUsers] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [myIdentity, setMyIdentity] = useState(null);
-  
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [selectedBoss, setSelectedBoss] = useState(null);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-
-  // Initialize: Load identity from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('sleg_identity');
-    if (saved) setMyIdentity(JSON.parse(saved));
-    fetchAllData();
-  }, []);
-
-  const fetchAllData = async () => {
-    try {
-      const res = await fetch(`${GAS_URL}?_=${Date.now()}`);
-      const data = await res.json();
-      if (data.users) {
-        setUsers(data.users.map((u, i) => ({
-          id: u['ユーザー名'] || `u${i}`, name: u['ユーザー名'] || 'Unknown', 
-          currentLevel: (u['現在の階層'] || 'LEVEL0'),
-          email: u['メールアドレス'] || '', slackId: u['SlackID'] || '',
-          exp: parseInt(u['総合EXP'] || 0), avatarUrl: u['アイコン画像URL'] || null
-        })));
+          </div>
+        );
       }
-      setLogs(data.logs || []);
-    } catch (e) { console.error('Fetch Error:', e); }
-    setIsLoading(false);
-  };
 
-  const handleLogin = (user) => {
-    setMyIdentity(user);
-    localStorage.setItem('sleg_identity', JSON.stringify(user));
-  };
-
-  const logout = () => {
-    if(confirm('ユーザー選択画面に戻りますか？')) {
-      localStorage.removeItem('sleg_identity');
-      setMyIdentity(null);
-    }
-  };
-
-  const handleSaveUser = async (u) => {
-    setIsSubmitting(true);
-    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveUser', ...u }) });
-    const d = await res.json();
-    if (d.success) { setToastMessage('保存完了'); setShowToast(true); setTimeout(()=>setShowToast(false),3000); await fetchAllData(); return true; }
-    setIsSubmitting(false); return false;
-  };
-
-  const handleAddUser = async (name) => {
-    setIsSubmitting(true);
-    await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'addUser', name }) });
-    await fetchAllData(); setIsSubmitting(false);
-  };
-
-  const handleRequestSubmit = async (data) => {
-    const action = selectedBoss ? 'bossBattleRequest' : 'playerRequest';
-    const body = selectedBoss ? 
-      { action, userFullName: myIdentity.name, bossName: data.targetName, date1: data.selectedSlot, message: data.message, label: data.label } :
-      { action, requesterName: myIdentity.name, targetName: data.targetName, selectedSlot: data.selectedSlot, message: data.message };
-
-    const res = await fetch(GAS_URL, { method: 'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body) });
-    const d = await res.json();
-    if (d.success) { alert('リクエスト完了！ SlackとGoogleカレンダーを確認してください。'); setSelectedBoss(null); setSelectedPlayer(null); }
-  };
-
-  if (isLoading) return <div className="loader-pulse" style={{textAlign:'center', marginTop:'45vh'}}>INITIALIZING DUNGEON...</div>;
-
-  if (!myIdentity) return <LoginScreen users={users} onSelect={handleLogin} />;
-
-  return (
-    <React.Fragment>
-      <header className="nav-header glass-container">
-        <h1 className="title-cyber" style={{margin:0, fontSize:'1.4rem'}}>SLEG <span style={{color:'var(--color-primary)'}}>SALES</span> DUNGEON</h1>
-        <div className="nav-links">
-          <button className={`nav-btn ${currentView === 'MAP'?'active':''}`} onClick={() => setCurrentView('MAP')}>MAP</button>
-          <button className={`nav-btn ${currentView === 'STATS'?'active':''}`} onClick={() => setCurrentView('STATS')}>STATS</button>
-          <button className={`nav-btn ${currentView === 'MASTER'?'active':''}`} onClick={() => setCurrentView('MASTER')}>MASTER</button>
-          <button className="nav-btn" onClick={logout} style={{opacity:0.6, fontSize:'0.8rem'}}>LOGOUT</button>
+      return (
+        <div className="stats-container animation-fade-in" style={{ flexDirection: 'column' }}>
+          <div className="glass-container" style={{ padding: '2rem' }}>
+            <h2 className="title-cyber" style={{ color: 'var(--color-gold)' }}>BOSS GRADING ROOM</h2>
+            <p style={{ color: '#aaa', marginBottom: '2rem' }}>AI評価をクリアした挑戦者が待機しています。動画を確認し、最終判定を行ってください。</p>
+            {pendingLogs.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                {pendingLogs.map((log, i) => (
+                  <div key={i} className="boss-eval-card" onClick={() => setSelectedLog(log)} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <strong style={{ fontSize: '1.2rem' }}>{log['ユーザー名']}</strong>
+                      <span className="status-badge status-passed">AI {log['AI評価点']}pt</span>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1rem' }}>提出日: {log['実施日']}</div>
+                    <button className="btn-primary" style={{ width: '100%' }}>動画を確認して採点する</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#555' }}>
+                挑戦者はまだいなそうだ... 🍵
+              </div>
+            )}
+          </div>
         </div>
-      </header>
+      );
+    };
 
-      <main className="app-content">
-        {currentView === 'MAP' && <DungeonMap users={users} myName={myIdentity.name} onBossClick={setSelectedBoss} onPlayerClick={setSelectedPlayer} />}
-        {currentView === 'STATS' && <StatsPage logs={logs} users={users} myName={myIdentity.name} />}
-        {currentView === 'MASTER' && <MasterAdminPage users={users} onSaveUser={handleSaveUser} onAddUser={handleAddUser} isSubmitting={isSubmitting} />}
-        {currentView === 'BATTLE' && <BattleScreen myName={myIdentity.name} onBattleComplete={async (d) => { setIsSubmitting(true); await fetch(GAS_URL, {method:'POST', body:JSON.stringify({...d, userFullName:myIdentity.name})}); await fetchAllData(); setCurrentView('MAP'); setIsSubmitting(false); }} isSubmitting={isSubmitting} />}
-      </main>
+    // 2.9 Duo Recording View (Realtime P2P)
+    const DuoRecordingView = ({ userFullName, targetName, mode, onComplete, onCancel }) => {
+      const [status, setStatus] = useState('initializing');
+      const [recording, setRecording] = useState(false);
+      const [timer, setTimer] = useState(0);
+      const [blob, setBlob] = useState(null);
+      const [uploading, setUploading] = useState(false);
 
-      <footer style={{position:'fixed', bottom:'10px', left:'10px', fontSize:'0.8rem', color:'#555', zIndex:100}}>
-        PLAYER: <span style={{color:'var(--color-primary)'}}>{myIdentity.name}</span>
-      </footer>
+      const [role, setRole] = useState(null); // 'ROLEPLAYER' | 'PARTNER'
+      const localVideoRef = useRef(null);
+      const remoteVideoRef = useRef(null);
+      const canvasRef = useRef(document.createElement('canvas'));
+      const peerRef = useRef(null);
+      const mediaRecorderRef = useRef(null);
+      const chunksRef = useRef([]);
+      const streamRef = useRef(null);
+      const animationRef = useRef(null);
 
-      {selectedBoss && <RequestModal type="BOSS" target={selectedBoss} requesterName={myIdentity.name} onClose={()=>setSelectedBoss(null)} onSubmit={handleRequestSubmit} />}
-      {selectedPlayer && <RequestModal type="PLAYER" target={selectedPlayer} requesterName={myIdentity.name} onClose={()=>setSelectedPlayer(null)} onSubmit={handleRequestSubmit} />}
-      <div className={`toast ${showToast ? 'show' : ''}`}>{toastMessage}</div>
-    </React.Fragment>
-  );
-};
+      useEffect(() => {
+        initPeer();
+        return () => {
+          if (peerRef.current) peerRef.current.destroy();
+          if (animationRef.current) cancelAnimationFrame(animationRef.current);
+          // ロープレ終了時にカメラ・マイクを必ず停止
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
+          }
+        };
+      }, []);
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-    </script>
+      const initPeer = async () => {
+        try {
+          // ロープレ開始時にカメラ・マイクを取得（高画質・高音質設定）
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 }
+          });
+          streamRef.current = stream;
+
+          const peer = new Peer();
+          peerRef.current = peer;
+
+          peer.on('open', async (id) => {
+            if (mode === 'TEST') {
+              setStatus('connected'); // Fake connection for testing
+              return;
+            }
+            if (mode === 'HOST') {
+              await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'hostRoleplay', userFullName, peerId: id }) });
+              setStatus('waiting');
+              peer.on('call', (call) => {
+                call.answer(stream);
+                call.on('stream', (remoteStream) => {
+                  if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+                  setStatus('connected');
+                });
+              });
+            } else {
+              const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'joinRoleplay', targetName }) });
+              const data = await res.json();
+              if (data.success) {
+                const call = peer.call(data.hostPeerId, stream);
+                call.on('stream', (remoteStream) => {
+                  if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+                  setStatus('connected');
+                });
+              } else { alert(data.error); onCancel(); }
+            }
+          });
+        } catch (e) { alert("メディアエラー: " + e.message); onCancel(); }
+      };
+
+      // Assign stream when role is selected and video elements render
+      useEffect(() => {
+        if (role && streamRef.current && localVideoRef.current) {
+          localVideoRef.current.srcObject = streamRef.current;
+        }
+      }, [role]);
+
+      const startDuoRecording = () => {
+        const canvas = canvasRef.current;
+        canvas.width = 1280;
+        canvas.height = 720;
+        const ctx = canvas.getContext('2d');
+
+        const draw = () => {
+          // Side by side layout
+          if (localVideoRef.current) ctx.drawImage(localVideoRef.current, 0, 0, 640, 720);
+          if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+            ctx.drawImage(remoteVideoRef.current, 640, 0, 640, 720);
+          }
+          animationRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+
+        const canvasStream = canvas.captureStream(30);
+        // Merge audio
+        const audioCtx = new AudioContext();
+        const dest = audioCtx.createMediaStreamDestination();
+        const localSource = audioCtx.createMediaStreamSource(streamRef.current);
+        localSource.connect(dest);
+
+        if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+          const remoteSource = audioCtx.createMediaStreamSource(remoteVideoRef.current.srcObject);
+          remoteSource.connect(dest);
+        }
+
+        const outputStream = new MediaStream([
+          canvasStream.getVideoTracks()[0],
+          dest.stream.getAudioTracks()[0]
+        ]);
+
+        // 直接アップロード方式のため、高画質ビットレート（2.5Mbps）と高品質音声に引き上げ
+        try {
+          mediaRecorderRef.current = new MediaRecorder(outputStream, {
+            mimeType: 'video/webm;codecs=vp8',
+            videoBitsPerSecond: 2500000
+          });
+        } catch (e) {
+          mediaRecorderRef.current = new MediaRecorder(outputStream, { mimeType: 'video/webm' });
+        }
+
+        mediaRecorderRef.current.ondataavailable = (e) => chunksRef.current.push(e.data);
+        mediaRecorderRef.current.onstop = () => {
+          const videoBlob = new Blob(chunksRef.current, { type: 'video/webm' });
+          setBlob(videoBlob);
+          cancelAnimationFrame(animationRef.current);
+        };
+
+        chunksRef.current = [];
+        mediaRecorderRef.current.start();
+        setRecording(true);
+        setTimer(0);
+        const interval = setInterval(() => setTimer(t => t + 1), 1000);
+        mediaRecorderRef.current._interval = interval;
+      };
+
+      const stopDuoRecording = () => {
+        setRecording(false); // UI update FIRST for "patt" feel
+        clearInterval(mediaRecorderRef.current._interval);
+        mediaRecorderRef.current.stop();
+      };
+
+      const handleUpload = async () => {
+        setUploading(true);
+        try {
+          // Base64エンコードのパース処理を完全撤廃し、File Blobをそのまま生データとして渡す（GAS制限回避）
+          await onComplete({
+            videoBlob: blob,
+            contentType: blob.type || 'video/webm',
+            isDuo: true,
+            isTest: mode === 'TEST', // TESTモードフラグ
+            role: role // 'ROLEPLAYER' will be scored, 'PARTNER' will just save
+          });
+        } catch (err) {
+          console.error("Upload error:", err);
+        } finally {
+          setUploading(false);
+        }
+      };
+
+      if (!role) {
+        return (
+          <div className="battle-container animation-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="glass-container" style={{ padding: '3rem', maxWidth: '500px', width: '100%', textAlign: 'center', margin: 'auto' }}>
+              <h2 className="title-cyber" style={{ color: 'var(--color-primary)', marginBottom: '2rem' }}>START DUO ROLEPLAY</h2>
+              <p style={{ color: '#aaa', marginBottom: '2.5rem' }}>あなたの役割を選択してください。</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <button className="btn-primary" style={{ padding: '1.5rem', fontSize: '1.2rem' }} onClick={() => setRole('ROLEPLAYER')}>
+                  ⚔️ 修行者として挑む<br />
+                  <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>（あなたの履歴として採点されます）</span>
+                </button>
+                <button className="nav-btn" style={{ padding: '1.5rem', fontSize: '1.2rem' }} onClick={() => setRole('PARTNER')}>
+                  🤝 パートナー（顧客役）<br />
+                  <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>（相手の練習に付き合います）</span>
+                </button>
+              </div>
+              <button className="nav-btn" style={{ marginTop: '2rem', opacity: 0.6 }} onClick={onCancel}>キャンセル</button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="battle-container animation-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-container" style={{ padding: '2rem', maxWidth: '900px', width: '100%', textAlign: 'center', margin: 'auto' }}>
+            <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>
+              {role === 'ROLEPLAYER' ? '⚔️ TRAINING' : '🤝 SUPPORTING'}: {mode === 'HOST' ? '待機中' : `VS ${targetName}`}
+            </h2>
+            <div style={{ display: 'flex', gap: '10px', height: '340px', marginTop: '1rem' }}>
+              <div style={{ flex: 1, background: '#000', borderRadius: '10px', overflow: 'hidden', position: 'relative', border: '2px solid var(--color-primary)' }}>
+                <video ref={localVideoRef} autoPlay muted playsInline className="video-mirror" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', bottom: 10, left: 10, fontSize: '0.8rem', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>YOU ({role})</div>
+              </div>
+              <div style={{ flex: 1, background: '#000', borderRadius: '10px', overflow: 'hidden', position: 'relative', border: '2px solid var(--color-secondary)' }}>
+                <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', bottom: 10, left: 10, fontSize: '0.8rem', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>{mode === 'TEST' ? 'DUMMY (TEST MODE)' : 'PARTNER'}</div>
+              </div>
+            </div>
+
+            {status === 'waiting' && <div className="loader-pulse" style={{ marginTop: '1rem' }}>パートナーの参加を待っています...</div>}
+
+            <div style={{ marginTop: '2rem', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' }}>
+              {(status === 'connected' || mode === 'TEST') && !blob && (
+                !recording ? (
+                  <button className="btn-record-start" onClick={startDuoRecording}>REC START ◉</button>
+                ) : (
+                  <button className="btn-record-stop" onClick={stopDuoRecording}>STOP ▢ ({Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')})</button>
+                )
+              )}
+              {blob && (
+                <button className="btn-primary" onClick={handleUpload} disabled={uploading} style={uploading ? { background: 'var(--color-primary)', color: 'black' } : {}}>
+                  {uploading ? '✓ 完了' : role === 'ROLEPLAYER' ? '自分の修行として記録 🤖' : '相手の修行分を保存 🏁'}
+                </button>
+              )}
+              <button className="nav-btn" onClick={onCancel}>終了</button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // 3.1 Stage Detail Modal
+    const StageDetailModal = ({ node, logs, myName, onClose, onDuoStart, onBossStart }) => {
+      const duoCount = logs.filter(l => {
+        if (l['ユーザー名'] !== myName || l['合否'] !== '合格') return false;
+        try {
+          const detail = JSON.parse(l['詳細JSON'] || '{}');
+          return detail.role === 'ROLEPLAYER' && (l['階層'] === node.level || !l['階層']);
+        } catch (e) { return false; }
+      }).length;
+
+      const isBossUnlocked = true; // ★【一時的テスト用】本来は duoCount >= 3 ですが常に解放します
+
+      return (
+        <div className="modal-overlay animation-fade-in">
+          <div className="glass-container modal-box" style={{ maxWidth: '600px', borderColor: 'var(--color-primary)' }}>
+            <button className="modal-close-btn" onClick={onClose}>×</button>
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              <h2 className="title-cyber" style={{ color: 'var(--color-primary)', fontSize: '1.8rem' }}>{node.label}</h2>
+              <div className="status-badge status-pending">LEVEL PROGRESS: {duoCount}/3</div>
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', letterSpacing: '1px', marginBottom: '0.5rem' }}>■ 達成目標 (MISSION GOAL)</h3>
+              <p style={{ fontSize: '1rem', lineHeight: '1.6', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px' }}>{node.goals}</p>
+            </div>
+
+            <div style={{ marginBottom: '2.5rem' }}>
+              <h3 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', letterSpacing: '1px', marginBottom: '1rem' }}>■ やるべきこと (QUESTS)</h3>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(node.quests || []).map((q, i) => (
+                  <li key={i} style={{ padding: '10px 15px', background: 'rgba(0, 255, 204, 0.05)', borderLeft: '3px solid var(--color-primary)', borderRadius: '4px', fontSize: '0.9rem' }}>
+                    {q}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <button className="nav-btn" style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)' }} onClick={onDuoStart}>
+                🤝 対面ロープレを行う<br />
+                <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>合格を3回獲得する</span>
+              </button>
+
+              <button
+                className={isBossUnlocked ? 'btn-record-start' : 'nav-btn'}
+                style={{ flex: 1, padding: '1rem', opacity: isBossUnlocked ? 1 : 0.4, cursor: isBossUnlocked ? 'pointer' : 'not-allowed', border: isBossUnlocked ? 'none' : '1px solid #444', animation: isBossUnlocked ? 'bg-pulse 1.5s infinite' : 'none' }}
+                onClick={() => isBossUnlocked && onBossStart()}
+              >
+                ⚔️ ボス戦に挑む<br />
+                <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{isBossUnlocked ? 'BOSS UNLOCKED!' : 'Locked (Duo 3/3 required)'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // 3. Dungeon Map
+    const DungeonMap = ({ users, logs, mapNodes, myName, onBossClick, onPlayerClick, onAIChallenge, onDuoJoin, onNodeSelect }) => {
+      const MAP_NODES = mapNodes;
+
+      const me = users.find(u => u.name === myName);
+      const myLevel = me?.currentLevel || 'LEVEL0';
+
+      // Get count of Duo Sessions (Passed) for current level
+      const getDuoPassCount = (level) => {
+        return logs.filter(l => {
+          if (l['ユーザー名'] !== myName) return false;
+          if (l['合否'] !== '合格') return false;
+
+          try {
+            const detail = JSON.parse(l['詳細JSON'] || '{}');
+            const isDuoRoleplayer = detail.role === 'ROLEPLAYER';
+            return isDuoRoleplayer && (l['階層'] === level || !l['階層']);
+          } catch (e) { return false; }
+        }).length;
+      };
+
+      const usersByLevel = {};
+      users.forEach(u => {
+        const lvl = (u.currentLevel || '').toUpperCase();
+        if (!usersByLevel[lvl]) usersByLevel[lvl] = [];
+        usersByLevel[lvl].push(u);
+      });
+
+      return (
+        <div className="dungeon-map-container" style={{ display: 'flex', position: 'relative', width: '100%', height: '100vh', background: '#050505', overflow: 'hidden' }}>
+          {/* Test Mode Entry */}
+          <button className="nav-btn" onClick={() => onDuoJoin({ name: 'TEST_USER', isTest: true })} style={{ position: 'absolute', top: 20, right: 20, zIndex: 100, border: '1px solid #555', fontSize: '0.7rem', padding: '5px 10px' }}>
+            DEBUG: TEST MODE
+          </button>
+
+          <div className="map-canvas" style={{ flex: 1 }}>
+            <div className="map-inner">
+              {MAP_NODES.map((node, idx) => {
+                const levelUsers = usersByLevel[node.level] || [];
+                const duoCount = getDuoPassCount(node.level);
+                const isCurrentLevel = node.level === myLevel;
+                // ★【一時的テスト用】本来は `duoCount >= 3` ですが、動作テストのため「自分がいる階層」なら常にボス戦を解放します
+                const isPassed = (isCurrentLevel) || (duoCount >= 3);
+
+                return (
+                  <div key={idx} className="map-node" style={{ left: `${node.x}%`, top: `${node.y}%`, opacity: myLevel >= node.level ? 1 : 0.4 }}>
+                    <div className="boss-ui" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                      {isPassed && <div className="boss-label">BOSS UNLOCKED!</div>}
+                      {isPassed ? (
+                        <div className={`boss-avatar-img ${node.colorClass}`} onClick={() => isCurrentLevel && onNodeSelect(node)} style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid var(--color-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '2.4rem', animation: 'bg-pulse 2s infinite', zIndex: 5 }}>
+                          ⚔️
+                        </div>
+                      ) : (
+                        <div className="boss-avatar-img" onClick={() => isCurrentLevel && onNodeSelect(node)} style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#333', border: '4px solid #555', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isCurrentLevel ? 'pointer' : 'default', flexDirection: 'column', gap: '4px', opacity: 0.8, zIndex: 5 }}>
+                          <span style={{ fontSize: '2.4rem' }}>{isCurrentLevel ? '🛡️' : '🔒'}</span>
+                          {isCurrentLevel && (
+                            <div style={{ background: 'rgba(0,0,0,0.7)', padding: '2px 8px', borderRadius: '4px', marginTop: '4px' }}>
+                              <span style={{ fontSize: '0.8rem', color: '#ffb3c6', fontWeight: 'bold' }}>AI合格 {duoCount}/3</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {isPassed && (
+                        <div style={{ fontSize: '1.2rem', background: 'var(--color-gold)', color: 'black', padding: '4px 12px', borderRadius: '8px', fontWeight: '900', whiteSpace: 'nowrap', zIndex: 10, marginTop: '-25px', marginBottom: '25px' }}>
+                          CHALLENGE
+                        </div>
+                      )}
+                      {!isPassed && <div style={{ height: '5px' }}></div>}
+                      <div className="boss-name-plate">{(isPassed || isCurrentLevel) ? node.bossName : '????'}</div>
+                    </div>
+                    <div className="avatar-container">
+                      {levelUsers.map(u => (
+                        <div key={u.id} className={`user-avatar-wrapper ${u.name === myName ? 'is-me' : ''}`}>
+                          <div className={`user-avatar ${u.name === myName ? 'is-me' : ''} ${u.isHosting ? 'is-hosting' : ''}`} title={u.name} onClick={() => u.isHosting ? onDuoJoin(u, 'JOIN') : onDuoJoin(u, 'HOST')}>
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', textAlign: 'center', lineHeight: '1.1', wordBreak: 'break-all', padding: '2px' }}>
+                              {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : Array.from(u.name).slice(0, 2).join('')}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="leaderboard-sidebar glass-container">
+            <h3 className="title-cyber" style={{ padding: '1.2rem', color: 'var(--color-primary)', borderBottom: '1px solid var(--glass-border)' }}>🏆 LEADERBOARD</h3>
+            <div className="leaderboard-content">
+              {[...users].sort((a, b) => b.exp - a.exp).map((u, i) => (
+                <div key={u.id} className={`lb-user-card ${u.name === myName ? 'is-me' : ''}`} onClick={() => u.name !== myName && onPlayerClick(u)} style={{ cursor: u.name !== myName ? 'pointer' : 'default' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div><span style={{ color: 'var(--color-gold)', fontWeight: 'bold' }}>#{i + 1}</span> <span style={{ fontWeight: 'bold' }}>{u.name}</span></div>
+                    <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{u.exp}</span>
+                  </div>
+                  <div className="exp-container"><div className="exp-bar" style={{ width: `${Math.min(100, (u.exp % 1000) / 10)}%` }}></div></div>
+                  <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '4px' }}>📍 {u.currentLevel}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ... (StatsPage and BattleScreen remain similar to previous but simplified for brevity in this step)
+    const StatsPage = ({ logs, users, myName, onSelectLog }) => {
+      const chartRef = useRef(null);
+      const user = users.find(u => u.name === myName);
+
+      useEffect(() => {
+        const ctx = document.getElementById('radarChart');
+        if (!ctx) return;
+        if (chartRef.current) chartRef.current.destroy();
+
+        // Skill calculation logic (Relation, Empathy, Hearing, Presentation, Closing)
+        const myLogs = logs.filter(l => l['ユーザー名'] === myName);
+        
+        const getAvg = (level, extractor) => {
+          const levelLogs = myLogs.filter(l => (l['現在の階層'] === level || l['階層'] === level));
+          if (levelLogs.length === 0) return 0;
+          const scores = levelLogs.map(l => {
+            try {
+              const parsed = l['詳細JSON'] ? JSON.parse(l['詳細JSON']) : {};
+              return extractor(l, parsed);
+            } catch(e) { return 0; }
+          });
+          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+          return (avg / 100) * 5; // Scale 0-100 to 0-5
+        };
+
+        const skills = [
+          getAvg('LEVEL0', (l, p) => p.R_phase_evaluation?.total_score || 0), // 関係構築
+          getAvg('LEVEL0', (l, p) => p.R_phase_evaluation?.S2_score || 0),    // 共感賞賛 (S2:共感賞賛)
+          getAvg('LEVEL1', (l, p) => l['AI評価点'] || 0),                      // ヒアリング
+          getAvg('LEVEL2', (l, p) => l['AI評価点'] || 0),                      // プレゼン
+          getAvg('LEVEL3', (l, p) => l['AI評価点'] || 0)                       // クロージング
+        ].map(s => s || 1); // 0だと寂しいので最低1、データあれば反映
+
+        chartRef.current = new Chart(ctx, {
+          type: 'radar',
+          data: {
+            labels: ['関係構築', '共感賞賛', 'ヒアリング', 'プレゼン', 'クロージング'],
+            datasets: [{ label: 'My Skills', data: skills, backgroundColor: 'rgba(0, 255, 204, 0.2)', borderColor: '#00ffcc', borderWidth: 2 }]
+          },
+          options: { scales: { r: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { display: false, max: 5, min: 0 } } }, plugins: { legend: { display: false } } }
+        });
+      }, [logs, myName]);
+
+      // 最新から並べるためにリバース
+      const myLogs = [...logs].filter(l => l['ユーザー名'] === myName).reverse();
+
+      // 最近5回のロープレ結果からフィードバックを抽出
+      const recentFeedbacks = myLogs
+        .filter(log => log['詳細JSON'])
+        .slice(0, 5)
+        .map(log => {
+          try {
+            const parsed = JSON.parse(log['詳細JSON']);
+            return {
+              date: log['実施日'],
+              partner: log['相手'],
+              isPassed: log['合否'] === '合格',
+              score: log['AI評価点'] !== undefined ? log['AI評価点'] : (parsed.R_phase_evaluation?.total_score || 0),
+              summary: parsed.summary || '評価コメントがありません',
+              bottleneck: parsed.bottleneck || '特にクリティカルな課題は見つかりませんでした'
+            };
+          } catch (e) { return null; }
+        })
+        .filter(Boolean);
+
+      return (
+        <div className="stats-container animation-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* 上部: レーダーチャート & 最近の課題 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="radar-section glass-container" style={{ textAlign: 'center', padding: '20px' }}>
+              <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>SKILL RADAR</h2>
+              <canvas id="radarChart" style={{ maxWidth: '300px', margin: '20px auto' }}></canvas>
+            </div>
+
+            <div className="glass-container" style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', maxHeight: '350px' }}>
+              <h2 className="title-cyber" style={{ color: 'var(--color-secondary)', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', fontSize: '1.2rem' }}>RECENT FEEDBACKS</h2>
+              {recentFeedbacks.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {recentFeedbacks.map((item, idx) => {
+                    const isGood = item.isPassed;
+                    const bgColor = isGood ? 'rgba(0, 153, 255, 0.1)' : 'rgba(255, 0, 85, 0.05)';
+                    const borderColor = isGood ? '#0099ff' : 'var(--color-secondary)';
+                    const labelColor = isGood ? '#99ccff' : '#ffb3c6';
+                    
+                    return (
+                      <div key={idx} style={{ background: bgColor, borderLeft: `4px solid ${borderColor}`, padding: '10px 14px', borderRadius: '0 8px 8px 0', transition: 'all 0.2s' }} className="issue-card hover-glow">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <div style={{ fontSize: '0.75rem', color: labelColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>{item.date} VS {item.partner}</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: '900', color: isGood ? '#00ccff' : 'var(--color-secondary)' }}>{item.score}pt</div>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#eaeaea', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          <span style={{ fontWeight: 'bold', color: labelColor, marginRight: '6px' }}>{isGood ? '【GOOD】' : '【ISSUE】'}</span>
+                          {isGood ? (typeof item.summary === 'string' ? item.summary : JSON.stringify(item.summary)) : (typeof item.bottleneck === 'string' ? item.bottleneck : JSON.stringify(item.bottleneck))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ color: '#888', fontStyle: 'italic', margin: 'auto', textAlign: 'center', padding: '2rem' }}>
+                  AI評価のあるロープレデータがまだありません
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 下部: 履歴一覧 */}
+          <div className="history-section glass-container" style={{ padding: '20px', overflowY: 'auto' }}>
+            <h2 className="title-cyber" style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>HISTORY</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
+              {myLogs.length > 0 ? myLogs.map((log, i) => (
+                <div key={i} className="history-item" onClick={() => onSelectLog(log)} style={{ border: '1px solid #333', padding: '15px', cursor: log['詳細JSON'] ? 'pointer' : 'default', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem', wordBreak: 'break-all', paddingRight: '10px' }}>VS {log['相手']}</div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '900', color: log['合否'] === '合格' ? 'var(--color-primary)' : 'var(--color-secondary)' }}>{log['合否']}</span>
+                      {log['AI評価点'] !== undefined && <span className="status-badge status-passed" style={{ padding: '4px 8px', fontSize: '0.9rem' }}>{log['AI評価点']}pt</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#888' }}>{log['実施日']}</div>
+                    {log['詳細JSON'] && <div style={{ fontSize: '0.75rem', color: 'black', background: 'var(--color-primary)', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>詳細ログを見る</div>}
+                  </div>
+                </div>
+              )) : <div style={{ color: '#555', fontStyle: 'italic', gridColumn: '1/-1' }}>履歴がまだありません</div>}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const BattleScreen = ({ myName, selectedNode, onBattleComplete, isSubmitting }) => {
+      const [formData, setFormData] = useState({ partner: '', type: '通常', passed: true, feedback: '' });
+      return (
+        <div className="battle-container animation-fade-in">
+          <div className="glass-container" style={{ padding: '2rem', maxWidth: '500px', width: '100%' }}>
+            <h2 className="title-cyber" style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>BOSS BATTLE RESULTS</h2>
+            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+              <div className="status-badge" style={{ background: 'var(--color-gold)', color: 'black', padding: '4px 12px' }}>{selectedNode?.label} - {selectedNode?.bossName}</div>
+              <p style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '8px' }}>クリア（合格）すると次の階層へ進みます</p>
+            </div>
+            <div className="form-group"><label className="form-label">評価者（ボス）の名前</label><input className="form-control" placeholder="相手の名前" value={formData.partner} onChange={e => setFormData({ ...formData, partner: e.target.value })} required /></div>
+            <div className="form-group"><label className="form-label">合否</label><select className="form-control" value={formData.passed} onChange={e => setFormData({ ...formData, passed: e.target.value === 'true' })}><option value="true">合格 (CLEAR)</option><option value="false">不合格 (FAILED)</option></select></div>
+            <button className="btn-danger" style={{ width: '100%', marginTop: '2rem', padding: '1rem', animation: formData.passed ? 'bg-pulse 2s infinite' : 'none' }} onClick={() => onBattleComplete({ ...formData, isBossBattle: true, level: selectedNode?.level, isLevelUp: formData.passed })} disabled={isSubmitting}>{isSubmitting ? '保存中...' : (formData.passed ? '✨ 合格にして次の階層へ進む' : '記録を保存 🏁')}</button>
+          </div>
+        </div>
+      );
+    };
+
+    // 6. AI Result Modal
+    const AIResultModal = ({ result, onClose }) => {
+      if (!result) return null;
+      return (
+        <div className="modal-overlay" onClick={onClose}>
+          <div className="modal-box glass-container animation-fade-in" style={{ maxWidth: '600px', width: '90%' }} onClick={e => e.stopPropagation()}>
+            <h2 className="title-cyber" style={{ color: result.R_phase_evaluation.is_passed ? 'var(--color-primary)' : 'var(--color-secondary)' }}>
+              {result.R_phase_evaluation.is_passed ? '🎉 AI CLEAR!' : '⚡️ AI FAILED'}
+            </h2>
+            <div style={{ fontSize: '3rem', fontWeight: '900', textAlign: 'center', margin: '1rem 0' }}>{result.R_phase_evaluation.total_score}<span style={{ fontSize: '1rem' }}>pt</span></div>
+            <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.4)', borderRadius: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+              <h4 style={{ color: 'var(--color-primary)' }}>SUMMARY</h4>
+              <p style={{ fontSize: '0.9rem' }}>{result.summary}</p>
+              <h4 style={{ color: 'var(--color-primary)', marginTop: '1rem' }}>BOTTLENECK</h4>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-secondary)' }}>{result.bottleneck}</p>
+              <h4 style={{ color: 'var(--color-primary)', marginTop: '1rem' }}>ADVICE</h4>
+              <ul style={{ fontSize: '0.85rem', paddingLeft: '20px' }}>
+                {result.improvement_plan.what_to_say.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </div>
+            <button className="btn-primary" onClick={onClose} style={{ width: '100%', marginTop: '1.5rem' }}>戻る</button>
+          </div>
+        </div>
+      );
+    };
+
+    // --- MAIN APP COMPONENT ---
+    const App = () => {
+      const [currentView, setCurrentView] = useState('MAP');
+      const [users, setUsers] = useState([]);
+      const [logs, setLogs] = useState([]);
+      const [isLoading, setIsLoading] = useState(true);
+      const [isSubmitting, setIsSubmitting] = useState(false);
+      const [myIdentity, setMyIdentity] = useState(null);
+      const [geminiKey, setGeminiKey] = useState(null); // フロントエンド評価用のキー保持
+
+      const [showToast, setShowToast] = useState(false);
+      const [toastMessage, setToastMessage] = useState('');
+      const [isErrorToast, setIsErrorToast] = useState(false);
+      const toastTimerRef = useRef(null);
+
+      // エラー通知（手動で閉じるまで消えない）
+      const showErrorToast = (msg) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToastMessage('❌ ' + msg);
+        setIsErrorToast(true);
+        setShowToast(true);
+      };
+
+      // 情報通知（3秒で自動消去）
+      const showInfoToast = (msg, durationMs = 3000) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToastMessage(msg);
+        setIsErrorToast(false);
+        setShowToast(true);
+        if (durationMs > 0) {
+          toastTimerRef.current = setTimeout(() => setShowToast(false), durationMs);
+        }
+      };
+      const [selectedBoss, setSelectedBoss] = useState(null);
+      const [selectedPlayer, setSelectedPlayer] = useState(null);
+      const [duoSession, setDuoSession] = useState(null); // { mode: 'HOST'|'JOIN', targetName: string }
+      const [prompts, setPrompts] = useState([]);
+      const [mapNodes, setMapNodes] = useState([
+        { level: 'LEVEL0', bossName: '非言語', x: 30, y: 85, label: 'STAGE 1', colorClass: 'boss-l0', goals: '非言語コミュニケーションの基礎をマスターし、第一印象で信頼を勝ち取る。', quests: ['相手の目を見て挨拶する', '適切なリアクション（頷き・相槌）を3回以上行う', '笑顔を絶やさず会話を終える'] },
+        { level: 'LEVEL1', bossName: '関係構築', x: 70, y: 60, label: 'STAGE 2', colorClass: 'boss-l1', goals: '共感と称賛を駆使して、本音を話しやすい雰囲気（心理的安全性）を構築する。', quests: ['相手の話を最後まで遮らずに聞く', '具体的な事実に対して称賛を1回以上行う', '「それ分かります」等の共感を示す言葉を使う'] },
+        { level: 'LEVEL2', bossName: 'ヒアリング(SP)', x: 35, y: 35, label: 'STAGE 3', colorClass: 'boss-l2', goals: '顧客の課題（SP: 潜在課題）を特定するための深掘り質問を習得する。', quests: ['「なぜ？」を3回以上繰り返して背景を聞く', '現状の不満や困りごとを2つ以上聞き出す', '理想の状態（BEYOND）を言語化させる'] },
+        { level: 'LEVEL3', bossName: 'ヒアリング(IN)', x: 50, y: 10, label: 'STAGE 4', colorClass: 'boss-l3', goals: '経営層に対して価値を訴求するための、投資対効果（IN: 影響度）のヒアリングを行う。', quests: ['課題解決しなかった場合のリスクを確認する', '決裁権を持つ人物が誰かを確認する', '投資に対する期待効果（ROI）を握る'] }
+      ]);
+      const [selectedNode, setSelectedNode] = useState(null);
+      const [aiResult, setAIResult] = useState(null);
+      // ★ カメラはロープレ中のみ起動するため、App側では保持しない
+
+      const handleSaveMapNode = (index, newNode) => {
+        const updated = [...mapNodes];
+        updated[index] = newNode;
+        setMapNodes(updated);
+        localStorage.setItem('sleg_map_nodes', JSON.stringify(updated));
+        showInfoToast('マップ情報を一時保存しました');
+      };
+
+      const handleDuoChallenge = async (user, mode) => {
+        if (user?.isTest) {
+          setDuoSession({ mode: 'TEST', targetName: 'TESTING' });
+          setCurrentView('DUO_RECORD');
+          return;
+        }
+        setDuoSession({ mode, targetName: user.name });
+        setCurrentView('DUO_RECORD');
+      };
+
+      // Initialize: Load identity from localStorage
+      useEffect(() => {
+        try {
+          const saved = localStorage.getItem('sleg_identity');
+          if (saved) {
+            setMyIdentity(JSON.parse(saved));
+            // カメラはロープレ開始時に取得するため、ここでは起動しない
+          }
+        } catch(e) {
+          localStorage.removeItem('sleg_identity');
+        }
+        fetchAllData();
+        const interval = setInterval(fetchAllData, 10000); // Poll every 10s
+        return () => clearInterval(interval);
+      }, []);
+
+      const fetchAllData = async () => {
+        try {
+          const res = await fetch(`${GAS_URL}?_=${Date.now()}`);
+          const data = await res.json();
+          if (data.users) {
+            const activeRooms = data.activeRooms || [];
+            const updatedUsers = data.users.map((u, i) => ({
+              id: u['ユーザー名'] || `u${i}`, name: u['ユーザー名'] || 'Unknown',
+              currentLevel: (u['現在の階層'] || 'LEVEL0'),
+              email: u['メールアドレス'] || '', slackId: u['SlackID'] || '',
+              role: u['権限'] || 'PLAYER',
+              exp: parseInt(u['総合EXP'] || 0), avatarUrl: u['アイコン画像 URL'] || null,
+              isHosting: activeRooms.includes(u['ユーザー名']),
+              hasPassword: !!(u['パスワード'] && u['パスワード'].trim() !== '')
+            }));
+            setUsers(updatedUsers);
+
+            // ログイン中ユーザーの情報を最新に同期
+            if (myIdentity) {
+              const freshMe = updatedUsers.find(u => u.name === myIdentity.name);
+              if (freshMe) {
+                // ロールや階層の変更を反映
+                if (freshMe.role !== myIdentity.role || freshMe.currentLevel !== myIdentity.currentLevel) {
+                  setMyIdentity(freshMe);
+                  localStorage.setItem('sleg_identity', JSON.stringify(freshMe));
+                }
+              }
+            }
+          }
+          if (data.prompts) setPrompts(data.prompts);
+          if (data.geminiKey) setGeminiKey(data.geminiKey);
+          setLogs(data.logs || []);
+        } catch (e) { console.error('Fetch Error:', e); }
+        setIsLoading(false);
+      };
+
+      const handleLogin = async (user, password) => {
+        // パスワード設定済ユーザーの場合は照合
+        if (user.hasPassword) {
+          try {
+            const res = await fetch(GAS_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: 'verifyPassword', name: user.name, password })
+            });
+            const d = await res.json();
+            if (!d.success) return false; // パスワード不一致
+          } catch (e) {
+            console.error('Password verify error:', e);
+            showErrorToast('認証エラー: ' + e.message);
+            return false;
+          }
+        }
+        setMyIdentity(user);
+        localStorage.setItem('sleg_identity', JSON.stringify(user));
+        // カメラはロープレ開始時に取得するため、ここでは起動しない
+      };
+
+      const logout = () => {
+        // 本番環境では誤操作防止に confirm が役立つが、
+        // テスト環境での自動化とUXを考慮し、ローカルストレージを削除してリロードする。
+        localStorage.removeItem('sleg_identity');
+        setMyIdentity(null);
+      };
+
+      const handleSaveUser = async (u) => {
+        setIsSubmitting(true);
+        const payload = { action: 'saveUser', ...u };
+        // newPassword が入力されている場合はパスワードも四信
+        if (u.newPassword && u.newPassword.trim() !== '') {
+          payload.password = u.newPassword;
+        }
+        delete payload.newPassword; // 好奇心から削除
+        const res = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+        const d = await res.json();
+        if (d.success) { showInfoToast('保存完了 ✅'); await fetchAllData(); return true; }
+        setIsSubmitting(false); return false;
+      };
+
+      const handleAddUser = async (name) => {
+        setIsSubmitting(true);
+        try {
+          await fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain to avoid CORS preflight or parsing issues in GAS
+            body: JSON.stringify({ action: 'addUser', name })
+          });
+        } catch (err) {
+          console.error("Add user error:", err);
+        }
+        await fetchAllData();
+        setIsSubmitting(false);
+      };
+
+      const handleSavePrompt = async (level, prompt) => {
+        setIsSubmitting(true);
+        const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'savePrompt', level, prompt }) });
+        const result = await res.json();
+        if (result.success) {
+          showInfoToast('プロンプトを更新しました ✅');
+          fetchAllData();
+        }
+        setIsSubmitting(false);
+      };
+
+      const handleRequestSubmit = async (data) => {
+        const action = selectedBoss ? 'bossBattleRequest' : 'playerRequest';
+        const body = selectedBoss ?
+          { action, userFullName: myIdentity.name, bossName: data.targetName, date1: data.selectedSlot, message: data.message, label: data.label } :
+          { action, requesterName: myIdentity.name, targetName: data.targetName, selectedSlot: data.selectedSlot, message: data.message };
+
+        const res = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+        const d = await res.json();
+        if (d.success) { alert('リクエスト完了！ SlackとGoogleカレンダーを確認してください。'); setSelectedBoss(null); setSelectedPlayer(null); }
+      };
+
+      const handleAIChallenge = (node) => {
+        // Single practice mode is removed. Progress is only through Duo.
+        alert('この階層をクリアするには、他のプレイヤーと対面ロープレを行い、3回合格してください。');
+      };
+
+      const onRecordingComplete = async (data) => {
+        setIsSubmitting(true);
+        showInfoToast('動画をアップロードしています... (画面を閉じないでください)', 0);
+
+        try {
+          console.log(`[送信開始] 動画サイズ: ${(data.videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
+          let fileId = '';
+
+          // ==========================================
+          // 1. Google Drive へのダイレクトアップロード
+          // ==========================================
+          try {
+            const initRes = await fetch(GAS_URL, {
+              method: 'POST',
+              body: new URLSearchParams({ payload: JSON.stringify({ action: 'getDriveUploadUrl', userFullName: myIdentity.name, timestamp: Date.now() }) })
+            });
+            const initData = await initRes.json();
+            if (initData.success && initData.uploadUrl) {
+              const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: data.videoBlob });
+              const uploadData = await uploadRes.json();
+              fileId = uploadData.id;
+            }
+          } catch (e) { console.warn("Drive Upload missed, but continuing to AI", e); }
+
+          let aiResultObj = null;
+
+          // ==========================================
+          // 2. Gemini APIフロントエンド直接解析 (スコア対象者のみ)
+          // ==========================================
+          if (data.role === 'ROLEPLAYER') {
+            if (!geminiKey) throw new Error("Gemini APIキーが取得できませんでした。");
+            showInfoToast('AIが動画を分析しています... (数十秒〜数分かかります)', 0);
+
+            const myPromptTemplate = prompts.find(p => p['階層'] === myIdentity?.currentLevel)?.['プロンプト'];
+
+            // TESTモード用プロンプト（話さなくてもOK・顔映るだけでパス）
+            const testPrompt = `これはシステムの動作テスト用の録画です。映像が届いていれば内容は問いません。
+以下のJSONのみで回答してください。余計なテキストやMarkdownは含めないでください:
+{"summary":"テスト録画を正常に受信しました。AIフィードバックのパイプラインは正常に動作しています。","R_phase_evaluation":{"total_score":85,"is_passed":true},"bottleneck":"テストモードのため評価スキップ。","improvement_plan":{"what_to_say":["テスト成功！実際のロープレでAI評価をやってみてください。"]}}`;
+
+            // 話者分離の補足だけを追加する
+            const speakerNote = "\n\n【重要】動画内の音声から『営業役（修練者）』と『顧客役（保護者または生徒）』の声を精緻に聞き分け、営業役の発言内容のみを評価対象としてください。出力は必ずJSONのみとし、余計なテキストやMarkdownは含めないでください。";
+            const systemPrompt = data.isTest
+              ? testPrompt
+              : myPromptTemplate
+                ? myPromptTemplate + speakerNote
+                : "あなたはセールスコーチです。" + speakerNote + "\n以下のJSONスキーマで回答してください: {\"summary\":\"\",\"R_phase_evaluation\":{\"total_score\":0,\"is_passed\":false},\"bottleneck\":\"\",\"improvement_plan\":{\"what_to_say\":[]}}";
+
+            // Gemini File API (Resumable Upload)
+            const geminiUploadRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiKey}`, {
+              method: 'POST',
+              headers: {
+                'X-Goog-Upload-Protocol': 'resumable',
+                'X-Goog-Upload-Command': 'start',
+                'X-Goog-Upload-Header-Content-Length': data.videoBlob.size,
+                'X-Goog-Upload-Header-Content-Type': data.contentType,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ file: { display_name: `rp_${Date.now()}.webm` } })
+            });
+
+            const geminiUploadUrl = geminiUploadRes.headers.get('x-goog-upload-url');
+            if (!geminiUploadUrl) throw new Error("Gemini Upload開始エラー");
+
+            const geminiPutRes = await fetch(geminiUploadUrl, {
+              method: 'POST',
+              headers: { 'X-Goog-Upload-Command': 'upload, finalize', 'X-Goog-Upload-Offset': '0' },
+              body: data.videoBlob
+            });
+
+            const geminiFileData = await geminiPutRes.json();
+            if (!geminiFileData.file) {
+              console.error('[Gemini] アップロードレスポンスエラー:', geminiFileData);
+              throw new Error(`Geminiファイルアップロード失敗: ${geminiFileData.error?.message || JSON.stringify(geminiFileData).substring(0, 100)}`);
+            }
+            const geminiFileUri = geminiFileData.file.uri;
+
+            // Backend処理の完了待機 (PROCESSING待ち)
+            let fileState = geminiFileData.file.state;
+            if (fileState === 'FAILED') {
+              console.error('[Gemini] アップロード直後FAILED:', geminiFileData.file);
+              throw new Error(`Geminiファイルが即座にFAILEDになりました。動画形式(${data.contentType})が非対応の可能性があります。`);
+            }
+            while (fileState === 'PROCESSING') {
+              await new Promise(r => setTimeout(r, 2000));
+              const checkRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${geminiFileData.file.name}?key=${geminiKey}`);
+              const checkData = await checkRes.json();
+              console.log('[Gemini] ファイル状態:', checkData.state, checkData);
+              fileState = checkData.state;
+              if (fileState === 'FAILED') {
+                const reason = checkData.error?.message || checkData.statusDetail || '詳細不明';
+                throw new Error(`Gemini処理失敗: ${reason}`);
+              }
+            }
+
+            // 【根本解決】APIキーが利用できるモデル一覧を動的に取得し、確実に存在するモデルを指定する
+            const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+            const modelsData = await modelsRes.json();
+            const availableModels = modelsData.models || [];
+            // モデル優先順位: 安定性重視（1.5-flash最優先）
+            const targetModel = availableModels.find(m => m.name === 'models/gemini-1.5-flash' && (m.supportedGenerationMethods || []).includes('generateContent'))
+              || availableModels.find(m => m.name === 'models/gemini-1.5-pro' && (m.supportedGenerationMethods || []).includes('generateContent'))
+              || availableModels.find(m => m.name === 'models/gemini-2.5-flash' && (m.supportedGenerationMethods || []).includes('generateContent'))
+              || availableModels.find(m => m.name === 'models/gemini-2.5-pro' && (m.supportedGenerationMethods || []).includes('generateContent'))
+              // 最終フォールバック（preview / experimental / 2.0系は除外）
+              || availableModels.find(m => m.name.includes('gemini') && !m.name.includes('preview') && !m.name.includes('exp') && !m.name.includes('2.0') && (m.supportedGenerationMethods || []).includes('generateContent'))
+              || availableModels.find(m => m.name.includes('gemini') && !m.name.includes('2.0') && (m.supportedGenerationMethods || []).includes('generateContent'));
+
+            if (!targetModel) {
+              console.error("Available Models:", modelsData);
+              throw new Error(`このAPIキーで利用可能なGeminiモデルが見つかりません。利用可能一覧: ${availableModels.map(m => m.name).join(', ')}`);
+            }
+
+            // 推論実行（高負荷エラー時は最大3回自動リトライ）
+            let generateData;
+            const maxRetry = 3;
+            for (let attempt = 1; attempt <= maxRetry; attempt++) {
+              const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${targetModel.name}:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ file_data: { mime_type: data.contentType, file_uri: geminiFileUri } }, { text: systemPrompt }] }]
+                })
+              });
+              generateData = await generateRes.json();
+              // 高負荷エラー(503/overloaded)の場合はリトライ
+              if (generateData.error && (generateData.error.code === 503 || (generateData.error.message||'').toLowerCase().includes('high demand') || (generateData.error.message||'').toLowerCase().includes('overload'))) {
+                if (attempt < maxRetry) {
+                  setToastMessage(`⏳ AIが混み合っています。${attempt * 5}秒後に再試行します... (${attempt}/${maxRetry})`);
+                  await new Promise(r => setTimeout(r, attempt * 5000));
+                  continue;
+                }
+              }
+              break; // エラーなし or リトライ対象外のエラーは即break
+            }
+            if (generateData.error) throw new Error(generateData.error.message);
+            const responseText = generateData.candidates[0].content.parts[0].text;
+            aiResultObj = JSON.parse(responseText.replace(/```json|```/g, ''));
+          }
+
+          // ==========================================
+          // 3. GASへ「最終結果テキスト」だけを格納
+          // ==========================================
+          showInfoToast('結果をログに保存しています...', 0);
+          const savePayload = {
+            action: 'saveEvaluationResult',
+            userFullName: myIdentity.name,
+            isDuo: data.isDuo,
+            fileId: fileId,
+            aiResult: aiResultObj || {
+              R_phase_evaluation: { is_passed: false, total_score: 0 },
+              summary: 'パートナー側でのサポート通信のため、AI評価は実行者側に記録されます',
+              bottleneck: '-', improvement_plan: { what_to_say: ['-'] }
+            }
+          };
+
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: new URLSearchParams({ payload: JSON.stringify(savePayload) })
+          });
+          const result = await res.json();
+
+          if (result.success) {
+            if (data.isDuo) {
+              await fetch(GAS_URL, { method: 'POST', body: new URLSearchParams({ payload: JSON.stringify({ action: 'stopHosting', userFullName: myIdentity.name }) }) }).catch(e => e);
+            }
+            if (aiResultObj) setAIResult(aiResultObj);
+            setCurrentView('MAP');
+            setTimeout(() => fetchAllData(), 3000);
+          } else {
+            alert("GAS記録エラー: " + result.error);
+          }
+        } catch (e) {
+          console.error("Super Architecture Error:", e);
+          showErrorToast(e.message);
+          setIsSubmitting(false);
+          return;
+        }
+
+        setShowToast(false);
+        setIsSubmitting(false);
+      };
+
+      if (isLoading) return <div className="loader-pulse" style={{ textAlign: 'center', marginTop: '45vh' }}>INITIALIZING DUNGEON...</div>;
+
+      if (!myIdentity) return <LoginScreen users={users} onSelect={handleLogin} onAddUser={handleAddUser} />;
+
+      const isBoss = myIdentity?.role === 'BOSS';
+
+      return (
+        <React.Fragment>
+          <header className="nav-header glass-container">
+            <h1 className="title-cyber" style={{ margin: 0, fontSize: '1.4rem' }}>SLEG <span style={{ color: 'var(--color-primary)' }}>SALES</span> DUNGEON</h1>
+            <div className="nav-links">
+              <button className={`nav-btn ${currentView === 'MAP' ? 'active' : ''}`} onClick={() => { setCurrentView('MAP'); setAIResult(null); }}>MAP</button>
+              <button className={`nav-btn ${currentView === 'STATS' ? 'active' : ''}`} onClick={() => { setCurrentView('STATS'); setAIResult(null); }}>STATS</button>
+              {(myIdentity?.role === 'ADMIN' || myIdentity?.role === 'MASTER') && <button className={`nav-btn ${currentView === 'MASTER' ? 'active' : ''}`} onClick={() => { setCurrentView('MASTER'); setAIResult(null); }}>MASTER</button>}
+              {(myIdentity?.role === 'ADMIN' || myIdentity?.role === 'BOSS') && <button className={`nav-btn ${currentView === 'GRADING' ? 'active' : ''}`} style={{ borderBottom: '2px solid var(--color-gold)' }} onClick={() => { setCurrentView('GRADING'); setAIResult(null); }}>GRADING</button>}
+              <button className="nav-btn" onClick={logout} style={{ opacity: 0.6, fontSize: '0.8rem' }}>LOGOUT</button>
+            </div>
+
+            {/* DUO Invite Notification */}
+            {(() => {
+              const host = users.find(u => u.isHosting && u.name !== myIdentity.name);
+              if (host) {
+                return (
+                  <div className="invite-notification" onClick={() => handleDuoChallenge(host, 'JOIN')}>
+                    ⚔️ {host.name}からDuoロープレの招待が届いています！ [参加する]
+                  </div>
+                );
+              }
+              const meHosting = users.find(u => u.isHosting && u.name === myIdentity.name);
+              if (meHosting) {
+                return (
+                  <div className="invite-notification" style={{ background: 'var(--color-primary)', color: 'black' }}>
+                    📡 あなたは現在Duoロープレを募集中です...
+                  </div>
+                );
+              }
+            })()}
+          </header>
+
+          <main className="app-content">
+            {currentView === 'MAP' && <DungeonMap users={users} logs={logs} mapNodes={mapNodes} myName={myIdentity.name} onBossClick={(b) => { setSelectedBoss(b); setCurrentView('BATTLE'); }} onPlayerClick={(u) => handleDuoChallenge(u, 'HOST')} onAIChallenge={handleAIChallenge} onDuoJoin={handleDuoChallenge} onNodeSelect={setSelectedNode} />}
+            {currentView === 'STATS' && <StatsPage logs={logs} users={users} myName={myIdentity.name} onSelectLog={(log) => {
+              if (log['詳細JSON']) {
+                try {
+                  setAIResult(JSON.parse(log['詳細JSON']));
+                } catch (e) { console.error('Failed to parse log JSON', e); }
+              }
+            }} />}
+            {currentView === 'MASTER' && <MasterAdminPage users={users} mapNodes={mapNodes} prompts={prompts} onSaveUser={handleSaveUser} onAddUser={handleAddUser} onSaveMapNode={handleSaveMapNode} onSavePrompt={handleSavePrompt} onDuoChallenge={handleDuoChallenge} isSubmitting={isSubmitting} />}
+            {currentView === 'DUO_RECORD' && <DuoRecordingView userFullName={myIdentity.name} mode={duoSession?.mode} targetName={duoSession?.targetName} onComplete={onRecordingComplete} onCancel={async () => {
+              if (duoSession?.mode === 'HOST') {
+                await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'stopHosting', userFullName: myIdentity.name }) });
+              }
+              setCurrentView('MAP');
+              fetchAllData();
+            }} />}
+            {currentView === 'GRADING' && <BossGradingPage logs={logs} onEvaluate={async (d) => { setIsSubmitting(true); const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'handleBossEvaluation', ...d }) }); await fetchAllData(); setCurrentView('MAP'); setIsSubmitting(false); }} />}
+            {currentView === 'BATTLE' && <BattleScreen myName={myIdentity.name} selectedNode={selectedBoss} onBattleComplete={async (d) => {
+              setIsSubmitting(true);
+              showInfoToast('ボス戦結果を記録しています...', 0);
+              try {
+                // 人間によるボス戦評価を「AI評価」と同じテーブル形式（ダミー項目）で保存しつつ、レベルアップフラグを付与
+                const savePayload = {
+                  action: 'saveEvaluationResult',
+                  userFullName: myIdentity.name,
+                  isDuo: false,
+                  fileId: 'boss_evaluation', // ダミー
+                  isBossBattle: true,
+                  isLevelUp: d.isLevelUp,
+                  level: d.level,
+                  aiResult: {
+                    R_phase_evaluation: { is_passed: d.passed, total_score: d.passed ? 100 : 0 },
+                    summary: `【ボス戦評価】 評価者: ${d.partner}`,
+                    bottleneck: d.passed ? '見事クリアしました！次の階層へ進みます。' : '再挑戦が必要です。',
+                    improvement_plan: { what_to_say: ['-'] }
+                  }
+                };
+                const res = await fetch(GAS_URL, {
+                  method: 'POST',
+                  body: new URLSearchParams({ payload: JSON.stringify(savePayload) })
+                });
+                const result = await res.json();
+                if(result.success) {
+                  showInfoToast(d.isLevelUp ? '✨ レベルアップしました！新しい階層が解放されます！' : '記録を保存しました ✅');
+                  // Level Up の場合、フロント側でも即時反映
+                  if (d.isLevelUp) {
+                    const newIdentity = { ...myIdentity };
+                    // 簡易的な階層インクリメント (LEVEL0 -> LEVEL1)
+                    if (d.level) {
+                       const num = parseInt(d.level.replace('LEVEL', '')) || 0;
+                       newIdentity.currentLevel = `LEVEL${num + 1}`;
+                    }
+                    setMyIdentity(newIdentity);
+                    localStorage.setItem('sleg_identity', JSON.stringify(newIdentity));
+                  }
+                  await fetchAllData();
+                  setCurrentView('MAP');
+                } else {
+                  alert("エラー: " + result.error);
+                }
+              } catch(e) { showErrorToast(e.message); }
+              setShowToast(false);
+              setIsSubmitting(false);
+            }} isSubmitting={isSubmitting} />}
+          </main>
+
+          <footer style={{ position: 'fixed', bottom: '10px', left: '10px', fontSize: '0.8rem', color: '#555', zIndex: 100 }}>
+            PLAYER: <span style={{ color: 'var(--color-primary)' }}>{myIdentity.name}</span> {isBoss && <span className="status-badge status-pending" style={{ marginLeft: '10px', verticalAlign: 'middle' }}>BOSS</span>}
+          </footer>
+
+          {selectedNode && (
+            <StageDetailModal
+              node={selectedNode}
+              logs={logs}
+              myName={myIdentity.name}
+              onClose={() => setSelectedNode(null)}
+              onDuoStart={() => { setSelectedNode(null); handleDuoChallenge(null, 'HOST'); }}
+              onBossStart={() => { setSelectedBoss(selectedNode); setCurrentView('BATTLE'); setSelectedNode(null); }}
+            />
+          )}
+          {aiResult && <AIResultModal result={aiResult} onClose={() => setAIResult(null)} />}
+          <div className={`toast ${showToast ? 'show' : ''} ${isErrorToast ? 'is-error' : ''}`} style={{ position: 'fixed' }}>
+            {isErrorToast && (
+              <button className="toast-close-btn" onClick={() => setShowToast(false)}>×</button>
+            )}
+            {toastMessage}
+          </div>
+        </React.Fragment>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
 </body>
+
 </html>
