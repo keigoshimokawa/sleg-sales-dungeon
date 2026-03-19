@@ -30,7 +30,7 @@
     const { useState, useEffect, useRef } = React;
 
     // --- API Configuration ---
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxZynlv0W2SfQ5V6-0pXrhZ0PupFFOOfErXtSrPhdwblmpEwdoF9Vxs5MWl6IFhO2M/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycby9chJzDw5uZcb9dOBOgnm3xdmNNaqZKfwtCzmPNalYzNdNYEfDryQ2LMu1_1QNPXc/exec';
     const BOSS_BG_IMAGE = 'cyber_saiyan_boss_bg_1773575562161.png';
 
     // --- Components ---
@@ -431,7 +431,15 @@
           });
           streamRef.current = stream;
 
-          const peer = new Peer();
+          const peer = new Peer({
+            config: {
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+              ]
+            },
+            debug: 2
+          });
           peerRef.current = peer;
 
           peer.on('open', async (id) => {
