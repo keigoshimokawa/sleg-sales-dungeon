@@ -30,7 +30,7 @@
     const { useState, useEffect, useRef } = React;
 
     // --- API Configuration ---
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxD-ACY-mVNNwv4mDmwWKQbk9bEMt1S-ypQTzTYI2Hlo4lm33Q80hFf6Sw5_wbrC1A/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzgstgq6YrlUcA0eIzHPJ5fZlLKyfvDHTjbKZcHdAjNyyxNvO05TXPnG12I9DPKGwk/exec';
     const BOSS_BG_IMAGE = 'cyber_saiyan_boss_bg_1773575562161.png';
 
     // --- Components ---
@@ -137,8 +137,11 @@
     // 1. Request Modal (Boss & Player Shared) - DELETED
 
     // 2. Master Admin View
-    const MasterAdminPage = ({ users, mapNodes, prompts, onSaveUser, onAddUser, onSaveMapNode, onSavePrompt, onDuoChallenge, isSubmitting }) => {
-      const [tab, setTab] = useState('USERS'); // 'USERS' | 'MAP' | 'PROMPTS'
+    const MasterAdminPage = ({ users, stages, scenarios, onSaveUser, onAddUser, onSaveMapNode, onSaveMapNodeToDB, onSaveScenario, onDeleteScenario, onDuoChallenge, isSubmitting }) => {
+      const [tab, setTab] = useState('USERS'); // 'USERS' | 'MAP' | 'SCENARIOS'
+      const [editingScenarioId, setEditingScenarioId] = useState(null);
+      const [editScenarioData, setEditScenarioData] = useState({});
+      const [newScenario, setNewScenario] = useState({ name: '', gender: '男性', grade: '高3', deviation: 50, club: '帰宅部', personality: '明るくて素直', univ: '地方国公立 文系', worry: '' });
 
       // User edit state
       const [editingId, setEditingId] = useState(null);
@@ -163,10 +166,10 @@
       return (
         <div className="stats-container animation-fade-in" style={{ flexDirection: 'column' }}>
           <div className="glass-container" style={{ padding: '2rem', width: '100%', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '2rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '2rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem', overflowX: 'auto' }}>
               <button className={`nav-btn ${tab === 'USERS' ? 'active' : ''}`} onClick={() => setTab('USERS')}>👥 ユーザー</button>
               <button className={`nav-btn ${tab === 'MAP' ? 'active' : ''}`} onClick={() => setTab('MAP')}>🗺️ マップ・ボス</button>
-              <button className={`nav-btn ${tab === 'PROMPTS' ? 'active' : ''}`} onClick={() => setTab('PROMPTS')}>✍️ AIプロンプト</button>
+              <button className={`nav-btn ${tab === 'SCENARIOS' ? 'active' : ''}`} onClick={() => setTab('SCENARIOS')}>🎭 シナリオ・題材</button>
             </div>
 
             {tab === 'USERS' && (
@@ -222,81 +225,185 @@
 
             {tab === 'MAP' && (
               <React.Fragment>
-                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>MAP & BOSS MANAGEMENT</h2>
-                <p style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1.5rem' }}>階層ごとの目標やクエスト、座標を編集できます。</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {mapNodes.map((node, i) => (
-                    <div key={i} className="glass-container" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '1rem' }}>
-                        <div>
-                          <label style={{ fontSize: '0.7rem', color: 'var(--color-primary)' }}>階層 / 各階層名</label>
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            <span style={{ padding: '10px', fontWeight: '900', color: '#888' }}>{node.level}</span>
-                            <input className="form-control" value={node.label} onChange={(e) => onSaveMapNode(i, { ...node, label: e.target.value })} placeholder="ステージ名" />
-                          </div>
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.7rem', color: 'var(--color-secondary)' }}>ボス名</label>
-                          <input className="form-control" value={node.bossName} onChange={(e) => onSaveMapNode(i, { ...node, bossName: e.target.value })} placeholder="ボス名" />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.7rem', color: '#888' }}>配置座標 (X% , Y%)</label>
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            <input type="number" className="form-control" value={node.x} onChange={(e) => onSaveMapNode(i, { ...node, x: parseInt(e.target.value) })} />
-                            <input type="number" className="form-control" value={node.y} onChange={(e) => onSaveMapNode(i, { ...node, y: parseInt(e.target.value) })} />
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ fontSize: '0.7rem', color: 'var(--color-gold)' }}>達成目標 (MISSION GOAL)</label>
-                        <textarea className="form-control" rows="2" value={node.goals} onChange={(e) => onSaveMapNode(i, { ...node, goals: e.target.value })} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.7rem', color: 'var(--color-gold)' }}>クエスト (QUESTS - 改行で区切り)</label>
-                        <textarea className="form-control" rows="3" value={(node.quests || []).join('\n')} onChange={(e) => onSaveMapNode(i, { ...node, quests: e.target.value.split('\n').filter(q => q.trim() !== '') })} />
-                      </div>
-                    </div>
+                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>MAP & STAGE MANAGEMENT</h2>
+                
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '2rem' }}>
+                  {levels.map(lvl => (
+                    <button 
+                      key={lvl} 
+                      className={`nav-btn ${editData.selectedLevel === lvl ? 'active' : ''}`} 
+                      onClick={() => setEditData(prev => ({ ...prev, selectedLevel: lvl, selectedStage: 'A' }))}
+                      style={{ flex: 1 }}
+                    >
+                      {lvl}
+                    </button>
                   ))}
                 </div>
+
+                {editData.selectedLevel && (
+                  <div className="glass-container" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ display: 'flex', gap: '15px', marginBottom: '1.5rem', borderBottom: '1px solid #333', paddingBottom: '1rem' }}>
+                      {['A', 'B', 'C', 'BOSS'].map(stg => (
+                        <button 
+                          key={stg} 
+                          className={`nav-btn ${editData.selectedStage === stg ? 'active' : ''}`}
+                          onClick={() => setEditData(prev => ({ ...prev, selectedStage: stg }))}
+                          style={{ fontSize: '0.8rem', padding: '5px 15px' }}
+                        >
+                          STAGE {stg}
+                        </button>
+                      ))}
+                    </div>
+
+                    {(() => {
+                      const lvl = editData.selectedLevel;
+                      const stg = editData.selectedStage || 'A';
+                      const node = (stages || []).find(s => s.level === lvl && s.stage === stg) || { level: lvl, stage: stg, bossName: lvl, goals: '', quests: [], x: 50, y: 50 };
+                      
+                      return (
+                        <div key={lvl + stg} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', background: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '12px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>表示名 / BOSS NAME</label>
+                              <input className="form-control" value={node.bossName} onChange={e => onSaveMapNode(lvl, stg, { bossName: e.target.value })} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>達成目標 (MISSION GOALS)</label>
+                              <textarea className="form-control" value={node.goals} onChange={e => onSaveMapNode(lvl, stg, { goals: e.target.value })} style={{ height: '80px' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>やるべきこと (QUESTS) | で区切り</label>
+                              <textarea className="form-control" value={Array.isArray(node.quests) ? node.quests.join('|') : node.quests} onChange={e => onSaveMapNode(lvl, stg, { quests: e.target.value })} style={{ height: '80px' }} />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                              <div><label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>座標 X %</label><input className="form-control" type="number" value={node.x} onChange={e => onSaveMapNode(lvl, stg, { x: e.target.value })} /></div>
+                              <div><label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>座標 Y %</label><input className="form-control" type="number" value={node.y} onChange={e => onSaveMapNode(lvl, stg, { y: e.target.value })} /></div>
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>画像 URL (シルエット等)</label>
+                              <input className="form-control" value={node.avatarUrl || ''} onChange={e => onSaveMapNode(lvl, stg, { avatarUrl: e.target.value })} placeholder="シルエット画像のURL" />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: 'var(--color-gold)', display: 'block', marginBottom: '5px' }}>AI採点プロンプト (個別設定)</label>
+                              <textarea className="form-control" value={node.prompt || ''} onChange={e => onSaveMapNode(lvl, stg, { prompt: e.target.value })} placeholder="空ならレベル既定のプロンプトを使用" style={{ height: '80px' }} />
+                            </div>
+                          </div>
+
+                          <div style={{ gridColumn: 'span 2', marginTop: '10px', display: 'flex', gap: '15px' }}>
+                            <button className="btn-danger" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem' }} onClick={() => onSaveMapNodeToDB(node)} disabled={isSubmitting}>
+                              {isSubmitting ? '保存中...' : `${lvl} ${stg} の設定をDBへ保存する`}
+                            </button>
+                            <button 
+                              className="nav-btn" 
+                              style={{ width: '180px', fontSize: '0.8rem', opacity: 0.7 }}
+                              onClick={() => {
+                                const defaults = {
+                                  'LEVEL0': {
+                                    'A': { bossName: 'スキル', goals: '具体的な基礎スキルの習得', quests: '相槌と声のトーンの調整' },
+                                    'B': { bossName: '非言語', goals: '立ち振る舞い、印象の定着', quests: '目線と姿勢による圧倒' }
+                                  },
+                                  'LEVEL1': {
+                                    'A': { bossName: 'バックトラック', goals: '相手の発言を繰り返して共感を示す', quests: 'バックトラック（反復）を3回以上実施' },
+                                    'B': { bossName: '共感・賞賛', goals: '相手の感情に寄り添い、ポジティブなフィードバックを返す', quests: '共感・賞賛の言葉を3回以上盛り込む' },
+                                    'C': { bossName: '要約・質問', goals: '情報を整理し、次のステップへ繋げる質問をする', quests: '要約とオープンクエスチョンを組み合わせる' }
+                                  },
+                                  'LEVEL2': {
+                                    'A': { bossName: 'ヒアリング (SP)', goals: 'SPIN話法を完遂せよ', quests: '状況質問(S)と問題質問(P)で相手の心を開く' },
+                                    'BOSS': { bossName: 'SPINマスター', goals: '完全なるSPIN話法の実施', quests: 'S・P・I・Nの各フェーズを適切に構成する' }
+                                  },
+                                  'LEVEL3': {
+                                    'A': { bossName: 'ヒアリング (IN)', goals: '潜在ニーズを5個引き出す', quests: '深掘り質問を重ねてインサイトに辿り着く' },
+                                    'BOSS': { bossName: '伝説の営業マスター', goals: '顧客の潜在的課題を特定し解決策を提示', quests: 'インサイトを突き、相手を納得させる' }
+                                  }
+                                };
+                                const d = defaults[lvl]?.[stg];
+                                if (d) {
+                                  onSaveMapNode(lvl, stg, d);
+                                  alert('過去の要件データを反映しました。保存ボタンを押すと確定します。');
+                                } else {
+                                  alert('このステージの既定データは見つかりませんでした。');
+                                }
+                              }}
+                            >
+                              📋 過去の要件を復元
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </React.Fragment>
             )}
-
-            {tab === 'PROMPTS' && (
+            {tab === 'SCENARIOS' && (
               <React.Fragment>
-                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>AI EVALUATION PROMPTS</h2>
+                <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>ROLEPLAY SCENARIOS</h2>
 
-                <div className="glass-container" style={{ padding: '1rem', marginBottom: '2rem', background: 'rgba(255,215,0,0.05)', border: '1px solid var(--color-gold)' }}>
-                  <h3 style={{ fontSize: '0.9rem', color: 'var(--color-gold)', margin: 0 }}>🧪 PROMPT & VIDEO TEST</h3>
-                  <p style={{ fontSize: '0.7rem', color: '#aaa' }}>設定したプロンプトでAI判定や録画保存が正しく動くかテストできます。</p>
-                  <button className="btn-primary" style={{ marginTop: '10px' }} onClick={() => onDuoChallenge({ name: 'TEST_USER', isTest: true })}>
-                    テスト録画を開始する (TEST MODE)
+                <div className="glass-container" style={{ padding: '1rem', marginBottom: '1.5rem', background: 'rgba(255,215,0,0.05)', border: '1px solid var(--color-gold)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 style={{ fontSize: '0.9rem', color: 'var(--color-gold)', margin: 0 }}>🧪 VIDEO & AI TEST</h3>
+                      <p style={{ fontSize: '0.7rem', color: '#aaa', margin: '4px 0 0 0' }}>設定した内容でAI判定や録画保存が正しく動くかテストできます。</p>
+                    </div>
+                    <button className="btn-primary" onClick={() => onDuoChallenge({ name: 'TEST_USER', isTest: true })}>
+                      テスト録画を開始 (TEST MODE)
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="glass-container" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--color-gold)' }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: 'var(--color-gold)' }}>新規シナリオ作成</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '10px' }}>
+                    <input className="form-control" placeholder="氏名 (例: 佐藤 翔太)" value={newScenario.name} onChange={e => setNewScenario({...newScenario, name: e.target.value})} />
+                    <select className="form-control" value={newScenario.gender} onChange={e => setNewScenario({...newScenario, gender: e.target.value})}>
+                      <option>男性</option><option>女性</option>
+                    </select>
+                    <select className="form-control" value={newScenario.grade} onChange={e => setNewScenario({...newScenario, grade: e.target.value})}>
+                      <option>高1</option><option>高2</option><option>高3</option><option>浪人</option>
+                    </select>
+                    <input className="form-control" type="number" placeholder="偏差値" value={newScenario.deviation} onChange={e => setNewScenario({...newScenario, deviation: e.target.value})} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '10px' }}>
+                    <input className="form-control" placeholder="部活 (例: サッカー部)" value={newScenario.club} onChange={e => setNewScenario({...newScenario, club: e.target.value})} />
+                    <input className="form-control" placeholder="性格 (例: 明るくて素直)" value={newScenario.personality} onChange={e => setNewScenario({...newScenario, personality: e.target.value})} />
+                    <input className="form-control" placeholder="志望校 (例: 地方国公立 文系)" value={newScenario.univ} onChange={e => setNewScenario({...newScenario, univ: e.target.value})} />
+                  </div>
+                  <textarea className="form-control" placeholder="悩み・現状 (必須)" value={newScenario.worry} onChange={e => setNewScenario({...newScenario, worry: e.target.value})} rows="3" style={{ marginBottom: '10px' }}></textarea>
+                  <button className="btn-primary" onClick={async () => {
+                    if (!newScenario.worry) return alert('悩み・現状は必須です');
+                    await onSaveScenario(newScenario);
+                    setNewScenario({ name: '', gender: '男性', grade: '高3', deviation: 50, club: '帰宅部', personality: '明るくて素直', univ: '地方国公立 文系', worry: '' });
+                  }} disabled={isSubmitting}>
+                    ＋ シナリオを追加
                   </button>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {levels.map(lvl => {
-                    const pObj = (prompts || []).find(p => p['階層'] === lvl);
-                    const currentPrompt = pObj ? pObj['プロンプト'] : '未設定';
-                    return (
-                      <div key={lvl} style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                          <span style={{ fontWeight: '900', color: 'var(--color-primary)' }}>{lvl}</span>
-                          <button className="btn-primary" style={{ padding: '2px 10px' }} onClick={() => { setEditingLevel(lvl); setEditPrompt(currentPrompt); }}>編集</button>
-                        </div>
-                        {editingLevel === lvl ? (
-                          <div>
-                            <textarea className="form-control" rows="10" value={editPrompt} onChange={e => setEditPrompt(e.target.value)} />
-                            <div style={{ display: 'flex', gap: '5px' }}>
-                              <button className="btn-primary" onClick={async () => { await onSavePrompt(lvl, editPrompt); setEditingLevel(null); }}>保存</button>
-                              <button className="nav-btn" onClick={() => setEditingLevel(null)}>取消</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '0.8rem', color: '#888', whiteSpace: 'pre-wrap', maxHeight: '100px', overflow: 'hidden' }}>{currentPrompt}</div>
-                        )}
+                  {(scenarios || []).map(s => (
+                    <div key={s.id} className="glass-container" style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', position: 'relative' }}>
+                      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid var(--glass-border)' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--color-primary)' }}>{s.name || '名前なし'} ({s.gender || '-'})</span>
+                        <span style={{ fontSize: '0.8rem', color: '#aaa', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px' }}>{s.grade || '-'} | 偏差値: {s.deviation || '-'} | {s.club || '-'}</span>
                       </div>
-                    );
-                  })}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', fontSize: '0.85rem' }}>
+                        <div>
+                          <div style={{ color: '#888', marginBottom: '2px' }}>志望校・性格</div>
+                          <div>{s.univ || '-'} / {s.personality || '-'}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--color-gold)', marginBottom: '2px' }}>悩み・現状</div>
+                          <div style={{ color: 'white', whiteSpace: 'pre-wrap' }}>{s.worry || '-'}</div>
+                        </div>
+                      </div>
+                      <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                        <button className="nav-btn" onClick={() => { if(confirm('本当に削除しますか？')) onDeleteScenario(s.id); }} style={{ padding: '4px 10px', fontSize: '0.7rem', color: '#ff4444', borderColor: '#ff4444' }}>削除</button>
+                      </div>
+                    </div>
+                  ))}
+                  {(!scenarios || scenarios.length === 0) && <div style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>シナリオが登録されていません。<br/>GASとスプレッドシートの設定を確認してください。</div>}
                 </div>
               </React.Fragment>
             )}
@@ -391,15 +498,59 @@
       );
     };
 
+    const generatePersona = (scenarios) => {
+      if (scenarios && scenarios.length > 0) {
+        // スプレッドシート（DB）から取得したシナリオからランダムに1つ選択
+        return scenarios[Math.floor(Math.random() * scenarios.length)];
+      }
+
+      // DBにシナリオが無い場合のフォールバック（旧ランダム生成）
+      const grades = ['高1', '高2', '高3', '高3', '高3'];
+      const surnames = ['佐藤', '鈴木', '高橋', '田中', '伊藤', '渡辺', '山本', '中村', '小林', '加藤', '吉田', '山田', '佐々木', '山口', '松本', '井上', '木村', '林', '斎藤'];
+      const maleNames = ['大翔', '翔太', '健一', '蓮', '樹', '悠真', '陽太', '蒼空', '湊', '朝陽', '結翔', '歩夢'];
+      const femaleNames = ['結衣', '陽菜', '凛', '結菜', 'ひまり', '美羽', 'さくら', '結愛', '澪', '芽依', '莉子', '葵'];
+      const genders = ['男性', '女性'];
+      
+      const gender = genders[Math.floor(Math.random() * genders.length)];
+      const name = surnames[Math.floor(Math.random() * surnames.length)] + ' ' + 
+                   (gender === '男性' ? maleNames[Math.floor(Math.random() * maleNames.length)] : femaleNames[Math.floor(Math.random() * femaleNames.length)]);
+      
+      const deviation = Math.floor(Math.random() * 26) + 45; // 45 to 70
+      
+      const clubs = ['帰宅部', '帰宅部', 'サッカー部', '野球部', 'バスケ部', 'テニス部', '吹奏楽部'];
+      const personalities = ['明るくて素直', '真面目で完璧主義', 'マイペースで楽観的', '人見知りで慎重', '負けず嫌いで頑固', '理屈っぽくて冷静', '承認欲求が強い', '好奇心旺盛で飽き性'];
+      const univs = ['地方国公立 文系', '地方国公立 理系', '旧帝大 文系', '旧帝大 理系', '早慶上理 文系', '早慶上理 理系'];
+      const worries = [
+        '部活が忙しくて勉強時間が全く取れず、引退してから間に合うか不安だが、今は部活に全力を注ぎたい。',
+        '親や学校からの期待が大きく、成績が少しでも下がると焦ってしまう。最近はモチベーションが落ちてきている。',
+        'そろそろ受験勉強を始めないといけないと思っているが、基礎が抜けており何から手をつけていいか全くわからない。'
+      ];
+
+      return {
+        id: 'FB_' + Date.now(),
+        grade: grades[Math.floor(Math.random() * grades.length)],
+        name,
+        gender,
+        deviation,
+        club: clubs[Math.floor(Math.random() * clubs.length)],
+        personality: personalities[Math.floor(Math.random() * personalities.length)],
+        univ: univs[Math.floor(Math.random() * univs.length)],
+        worry: worries[Math.floor(Math.random() * worries.length)]
+      };
+    };
+
     // 2.9 Duo Recording View (Realtime P2P)
-    const DuoRecordingView = ({ userFullName, targetName, mode, onComplete, onCancel }) => {
+    const DuoRecordingView = ({ userFullName, targetName, mode, scenarios, onComplete, onCancel }) => {
       const [status, setStatus] = useState('initializing');
       const [recording, setRecording] = useState(false);
       const [timer, setTimer] = useState(0);
       const [blob, setBlob] = useState(null);
       const [uploading, setUploading] = useState(false);
+      const [countdown, setCountdown] = useState(null);
 
-      const [role, setRole] = useState(null); // 'ROLEPLAYER' | 'PARTNER'
+      // Automatic Role Assignment based on mode
+      const role = mode === 'HOST' ? 'ROLEPLAYER' : 'PARTNER';
+      const [persona, setPersona] = useState(() => mode === 'HOST' ? generatePersona(scenarios) : null);
       const localVideoRef = useRef(null);
       const remoteVideoRef = useRef(null);
       const canvasRef = useRef(document.createElement('canvas'));
@@ -431,7 +582,10 @@
           });
           streamRef.current = stream;
 
-          const peer = new Peer({
+          const sanitize = (n) => encodeURIComponent(n || 'guest').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + 'sleg26';
+          const hostId = mode === 'HOST' ? sanitize(userFullName) : undefined;
+          
+          const peer = new Peer(hostId, {
             config: {
               iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -442,14 +596,30 @@
           });
           peerRef.current = peer;
 
+          peer.on('error', (err) => {
+            if (err.type === 'unavailable-id') {
+              console.warn("PeerJS Error: ID already in use. Retrying with random ID or continuing locally...");
+              setStatus('connected'); // Fallback if local testing
+            } else {
+              console.warn("PeerJS Error:", err);
+            }
+          });
+
           peer.on('open', async (id) => {
             if (mode === 'TEST') {
-              setStatus('connected'); // Fake connection for testing
+              setStatus('connected');
               return;
             }
             if (mode === 'HOST') {
-              await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'hostRoleplay', userFullName, peerId: id }) });
               setStatus('waiting');
+              
+              // Send persona to partner when they connect data channel
+              peer.on('connection', (conn) => {
+                conn.on('open', () => {
+                  conn.send({ type: 'SYNC_PERSONA', payload: persona });
+                });
+              });
+
               peer.on('call', (call) => {
                 call.answer(stream);
                 call.on('stream', (remoteStream) => {
@@ -458,15 +628,23 @@
                 });
               });
             } else {
-              const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'joinRoleplay', targetName }) });
-              const data = await res.json();
-              if (data.success) {
-                const call = peer.call(data.hostPeerId, stream);
+              const targetPeerId = sanitize(targetName);
+              
+              const conn = peer.connect(targetPeerId);
+              conn.on('data', (data) => {
+                if (data.type === 'SYNC_PERSONA') setPersona(data.payload);
+              });
+
+              const call = peer.call(targetPeerId, stream);
+              if (call) {
                 call.on('stream', (remoteStream) => {
                   if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
                   setStatus('connected');
                 });
-              } else { alert(data.error); onCancel(); }
+              } else {
+                alert("相手が見つかりませんでした。通信IDを確認してください。");
+                onCancel();
+              }
             }
           });
         } catch (e) { alert("メディアエラー: " + e.message); onCancel(); }
@@ -487,7 +665,14 @@
 
         const draw = () => {
           // Side by side layout
-          if (localVideoRef.current) ctx.drawImage(localVideoRef.current, 0, 0, 640, 720);
+          if (localVideoRef.current) {
+            // Mirror inversion for local video
+            ctx.save();
+            ctx.translate(640, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(localVideoRef.current, 0, 0, 640, 720);
+            ctx.restore();
+          }
           if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
             ctx.drawImage(remoteVideoRef.current, 640, 0, 640, 720);
           }
@@ -527,6 +712,19 @@
           const videoBlob = new Blob(chunksRef.current, { type: 'video/webm' });
           setBlob(videoBlob);
           cancelAnimationFrame(animationRef.current);
+          
+          // Auto-upload and evaluate
+          setUploading(true);
+          onComplete({
+            videoBlob: videoBlob,
+            contentType: videoBlob.type || 'video/webm',
+            isDuo: true,
+            isTest: mode === 'TEST',
+            role: role
+          }).catch(err => {
+            console.error("Upload error:", err);
+            setUploading(false);
+          });
         };
 
         chunksRef.current = [];
@@ -543,45 +741,21 @@
         mediaRecorderRef.current.stop();
       };
 
-      const handleUpload = async () => {
-        setUploading(true);
-        try {
-          // Base64エンコードのパース処理を完全撤廃し、File Blobをそのまま生データとして渡す（GAS制限回避）
-          await onComplete({
-            videoBlob: blob,
-            contentType: blob.type || 'video/webm',
-            isDuo: true,
-            isTest: mode === 'TEST', // TESTモードフラグ
-            role: role // 'ROLEPLAYER' will be scored, 'PARTNER' will just save
-          });
-        } catch (err) {
-          console.error("Upload error:", err);
-        } finally {
-          setUploading(false);
-        }
+      const handleStartClick = () => {
+        setCountdown(3);
+        let count = 3;
+        const tick = setInterval(() => {
+          count--;
+          if (count > 0) {
+            setCountdown(count);
+          } else {
+            clearInterval(tick);
+            setCountdown(null);
+            startDuoRecording();
+          }
+        }, 1000);
       };
 
-      if (!role) {
-        return (
-          <div className="battle-container animation-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="glass-container" style={{ padding: '3rem', maxWidth: '500px', width: '100%', textAlign: 'center', margin: 'auto' }}>
-              <h2 className="title-cyber" style={{ color: 'var(--color-primary)', marginBottom: '2rem' }}>START DUO ROLEPLAY</h2>
-              <p style={{ color: '#aaa', marginBottom: '2.5rem' }}>あなたの役割を選択してください。</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <button className="btn-primary" style={{ padding: '1.5rem', fontSize: '1.2rem' }} onClick={() => setRole('ROLEPLAYER')}>
-                  ⚔️ 修行者として挑む<br />
-                  <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>（あなたの履歴として採点されます）</span>
-                </button>
-                <button className="nav-btn" style={{ padding: '1.5rem', fontSize: '1.2rem' }} onClick={() => setRole('PARTNER')}>
-                  🤝 パートナー（顧客役）<br />
-                  <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>（相手の練習に付き合います）</span>
-                </button>
-              </div>
-              <button className="nav-btn" style={{ marginTop: '2rem', opacity: 0.6 }} onClick={onCancel}>キャンセル</button>
-            </div>
-          </div>
-        );
-      }
 
       return (
         <div className="battle-container animation-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -589,30 +763,70 @@
             <h2 className="title-cyber" style={{ color: 'var(--color-primary)' }}>
               {role === 'ROLEPLAYER' ? '⚔️ TRAINING' : '🤝 SUPPORTING'}: {mode === 'HOST' ? '待機中' : `VS ${targetName}`}
             </h2>
-            <div style={{ display: 'flex', gap: '10px', height: '340px', marginTop: '1rem' }}>
+            {persona && (
+              <div className="animation-slide-up" style={{ marginBottom: '1.5rem', background: 'rgba(0, 15, 5, 0.8)', padding: '15px', borderRadius: '12px', border: '1px solid var(--color-primary)', textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid rgba(0,255,153,0.3)', paddingBottom: '10px' }}>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '1.1rem', textShadow: '0 0 10px var(--color-primary)' }}>👤 本日のターゲット顧客</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', fontSize: '0.85rem' }}>
+                  <div className="glass-container" style={{ padding: '8px', background: 'rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#aaa', fontSize: '0.7rem', display: 'block' }}>名前・性別</span>
+                    <strong>{persona.name} ({persona.gender})</strong>
+                  </div>
+                  <div className="glass-container" style={{ padding: '8px', background: 'rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#aaa', fontSize: '0.7rem', display: 'block' }}>学年・偏差値</span>
+                    <strong>{persona.grade} (偏差値: {persona.deviation})</strong>
+                  </div>
+                  <div className="glass-container" style={{ padding: '8px', background: 'rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#aaa', fontSize: '0.7rem', display: 'block' }}>部活</span>
+                    <strong>{persona.club}</strong>
+                  </div>
+                  <div className="glass-container" style={{ padding: '8px', background: 'rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#aaa', fontSize: '0.7rem', display: 'block' }}>性格</span>
+                    <strong>{persona.personality}</strong>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginTop: '10px', fontSize: '0.85rem' }}>
+                  <div className="glass-container" style={{ padding: '8px', background: 'rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#aaa', fontSize: '0.7rem', display: 'block' }}>志望校</span>
+                    <strong>{persona.univ}</strong>
+                  </div>
+                  <div className="glass-container" style={{ padding: '8px', background: 'rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: '#aaa', fontSize: '0.7rem', display: 'block' }}>悩み・現状</span>
+                    <strong style={{ color: 'var(--color-secondary)' }}>{persona.worry}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px', height: '340px', marginTop: '1rem', position: 'relative' }}>
+              {countdown !== null && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '10px' }}>
+                  <span style={{ fontSize: '10rem', color: 'var(--color-primary)', textShadow: '0 0 30px var(--color-primary)', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>{countdown}</span>
+                </div>
+              )}
               <div style={{ flex: 1, background: '#000', borderRadius: '10px', overflow: 'hidden', position: 'relative', border: '2px solid var(--color-primary)' }}>
                 <video ref={localVideoRef} autoPlay muted playsInline className="video-mirror" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <div style={{ position: 'absolute', bottom: 10, left: 10, fontSize: '0.8rem', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>YOU ({role})</div>
               </div>
               <div style={{ flex: 1, background: '#000', borderRadius: '10px', overflow: 'hidden', position: 'relative', border: '2px solid var(--color-secondary)' }}>
                 <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', bottom: 10, left: 10, fontSize: '0.8rem', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>{mode === 'TEST' ? 'DUMMY (TEST MODE)' : 'PARTNER'}</div>
+                <div style={{ position: 'absolute', bottom: 10, left: 10, fontSize: '0.8rem', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: '4px' }}>PARTNER</div>
               </div>
             </div>
 
             {status === 'waiting' && <div className="loader-pulse" style={{ marginTop: '1rem' }}>パートナーの参加を待っています...</div>}
 
             <div style={{ marginTop: '2rem', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' }}>
-              {(status === 'connected' || mode === 'TEST') && !blob && (
+              {(status === 'connected' || mode === 'TEST') && !blob && mode === 'HOST' && (
                 !recording ? (
-                  <button className="btn-record-start" onClick={startDuoRecording}>REC START ◉</button>
+                  <button className="btn-record-start" onClick={handleStartClick} disabled={countdown !== null}> REC START ◉</button>
                 ) : (
                   <button className="btn-record-stop" onClick={stopDuoRecording}>STOP ▢ ({Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')})</button>
                 )
               )}
-              {blob && (
-                <button className="btn-primary" onClick={handleUpload} disabled={uploading} style={uploading ? { background: 'var(--color-primary)', color: 'black' } : {}}>
-                  {uploading ? '✓ 完了' : role === 'ROLEPLAYER' ? '自分の修行として記録 🤖' : '相手の修行分を保存 🏁'}
+              {uploading && (
+                <button className="btn-primary" disabled style={{ background: 'var(--color-primary)', color: 'black' }}>
+                  AI評価へ送信中...
                 </button>
               )}
               <button className="nav-btn" onClick={onCancel}>終了</button>
@@ -622,163 +836,384 @@
       );
     };
 
-    // 3.1 Stage Detail Modal
+    // 3.1 Stage Detail Modal (Refined)
     const StageDetailModal = ({ node, logs, myName, onClose, onDuoStart, onBossStart }) => {
-      const duoCount = logs.filter(l => {
-        if (l['ユーザー名'] !== myName || l['合否'] !== '合格') return false;
-        try {
-          const detail = JSON.parse(l['詳細JSON'] || '{}');
-          return detail.role === 'ROLEPLAYER' && (l['階層'] === node.level || !l['階層']);
-        } catch (e) { return false; }
-      }).length;
+      const getStars = (l, s) => {
+        const stageLogs = logs.filter(log => {
+          if (log['ユーザー名'] !== myName || log['合否'] !== '合格') return false;
+          if (log['階層'] !== l) return false;
+          try {
+            const detail = JSON.parse(log['詳細JSON'] || '{}');
+            return detail.stage === s && (log['AI評価点'] >= 80 || (detail.R_phase_evaluation?.total_score >= 80));
+          } catch (e) { return false; }
+        });
+        return Math.min(3, stageLogs.length);
+      };
 
-      const isBossUnlocked = true; // ★【一時的テスト用】本来は duoCount >= 3 ですが常に解放します
+      const stars = getStars(node.level, node.stage);
+      const isBoss = node.stage === 'BOSS';
 
       return (
         <div className="modal-overlay animation-fade-in">
-          <div className="glass-container modal-box" style={{ maxWidth: '600px', borderColor: 'var(--color-primary)' }}>
-            <button className="modal-close-btn" onClick={onClose}>×</button>
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <h2 className="title-cyber" style={{ color: 'var(--color-primary)', fontSize: '1.8rem' }}>{node.label}</h2>
-              <div className="status-badge status-pending">LEVEL PROGRESS: {duoCount}/3</div>
-            </div>
-
+          <div className="glass-container animation-slide-up" style={{ padding: '2.5rem', maxWidth: '500px', width: '90%', textAlign: 'center', border: '1px solid var(--color-primary)' }}>
             <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', letterSpacing: '1px', marginBottom: '0.5rem' }}>■ 達成目標 (MISSION GOAL)</h3>
-              <p style={{ fontSize: '1rem', lineHeight: '1.6', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px' }}>{node.goals}</p>
-            </div>
-
-            <div style={{ marginBottom: '2.5rem' }}>
-              <h3 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', letterSpacing: '1px', marginBottom: '1rem' }}>■ やるべきこと (QUESTS)</h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(node.quests || []).map((q, i) => (
-                  <li key={i} style={{ padding: '10px 15px', background: 'rgba(0, 255, 204, 0.05)', borderLeft: '3px solid var(--color-primary)', borderRadius: '4px', fontSize: '0.9rem' }}>
-                    {q}
-                  </li>
+              <span className="status-badge" style={{ background: 'var(--color-primary)', fontSize: '0.9rem', padding: '5px 15px', borderRadius: '50px' }}>
+                {node.level} - STAGE {node.stage}
+              </span>
+              <h2 className="title-cyber" style={{ fontSize: '2rem', margin: '1rem 0', color: 'white' }}>{node.bossName}</h2>
+              <div className="stars-display" style={{ fontSize: '2rem', letterSpacing: '10px' }}>
+                {[1, 2, 3].map(s => (
+                  <span key={s} style={{ color: stars >= s ? 'var(--color-gold)' : 'rgba(255,255,255,0.1)' }}>★</span>
                 ))}
-              </ul>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <button className="nav-btn" style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)' }} onClick={onDuoStart}>
-                🤝 対面ロープレを行う<br />
-                <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>合格を3回獲得する</span>
-              </button>
-
-              <button
-                className={isBossUnlocked ? 'btn-record-start' : 'nav-btn'}
-                style={{ flex: 1, padding: '1rem', opacity: isBossUnlocked ? 1 : 0.4, cursor: isBossUnlocked ? 'pointer' : 'not-allowed', border: isBossUnlocked ? 'none' : '1px solid #444', animation: isBossUnlocked ? 'bg-pulse 1.5s infinite' : 'none' }}
-                onClick={() => isBossUnlocked && onBossStart()}
-              >
-                ⚔️ ボス戦に挑む<br />
-                <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{isBossUnlocked ? 'BOSS UNLOCKED!' : 'Locked (Duo 3/3 required)'}</span>
-              </button>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '15px', textAlign: 'left', marginBottom: '2rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ marginBottom: '1.2rem' }}>
+                <strong style={{ color: 'var(--color-gold)', display: 'block', fontSize: '0.8rem', marginBottom: '5px', textTransform: 'uppercase' }}>Mission Goal</strong>
+                <p style={{ margin: 0, fontSize: '1.1rem', lineHeight: '1.5', fontWeight: 'bold' }}>{node.goals || '目標が設定されていません。'}</p>
+              </div>
+              <div>
+                <strong style={{ color: 'var(--color-gold)', display: 'block', fontSize: '0.8rem', marginBottom: '8px', textTransform: 'uppercase' }}>Quests</strong>
+                <ul className="quest-list" style={{ margin: 0, paddingLeft: '0', listStyle: 'none', fontSize: '0.95rem', color: '#eee' }}>
+                  {(Array.isArray(node.quests) ? node.quests : (node.quests || '').split('|')).map((q, i) => (
+                    <li key={i} style={{ marginBottom: '8px', paddingLeft: '20px', position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: 0, color: 'var(--color-primary)' }}>▹</span> {q}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {isBoss ? (
+                <button 
+                  className="btn-danger animation-pulse" 
+                  style={{ padding: '1.2rem', fontSize: '1.2rem', fontWeight: 'bold', borderRadius: '12px' }}
+                  onClick={() => onBossStart(node)}
+                >
+                  👿 ボス戦の申し込みを飛ばす
+                </button>
+              ) : (
+                <button 
+                  className="btn-primary" 
+                  style={{ padding: '1.2rem', fontSize: '1.2rem', fontWeight: 'bold', borderRadius: '12px' }}
+                  onClick={() => onDuoStart(node)}
+                >
+                  ⚔️ ロープレ修行を開始する
+                </button>
+              )}
+              <button className="nav-btn" style={{ padding: '1rem', opacity: 0.6 }} onClick={onClose}>マップに戻る</button>
+            </div>
+            
+            {!isBoss && stars < 3 && (
+              <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: '#888' }}>
+                あと {3 - stars} 回「80点以上で合格」すると★が貯まり、次へ進めます。
+              </p>
+            )}
           </div>
         </div>
       );
     };
 
     // 3. Dungeon Map
-    const DungeonMap = ({ users, logs, mapNodes, myName, onBossClick, onPlayerClick, onAIChallenge, onDuoJoin, onNodeSelect }) => {
-      const MAP_NODES = mapNodes;
+    const RecruitmentBoard = ({ rooms, users, myName, onJoin, onCancel }) => {
+      return (
+        <div className="glass-container animation-fade-in" style={{ padding: '15px', marginBottom: '20px', border: '1px solid rgba(0,255,153,0.3)', background: 'rgba(0,10,5,0.6)' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="pulse-dot"></span> ⚔️ ロープレ募集掲示板（ロビー）
+          </h3>
+          {rooms.length === 0 ? (
+            <div style={{ fontSize: '0.8rem', color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '10px' }}>
+              現在募集中のルームはありません。マップからステージを選んで募集を出してみましょう！
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
+              {rooms.map((room, idx) => {
+                const host = users.find(u => u.name === room.hostName);
+                const isMine = room.hostName === myName;
+                return (
+                  <div key={idx} className="glass-container hover-glow" style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', border: isMine ? '1px solid var(--color-primary)' : '1px solid #333' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="avatar-small" style={{ backgroundImage: host?.avatarUrl ? `url(${host.avatarUrl})` : 'none', width: '32px', height: '32px' }}>
+                        {!host?.avatarUrl && room.hostName.charAt(0)}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{room.hostName}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-primary)' }}>{room.level} - ステージ{room.stage}</div>
+                      </div>
+                    </div>
+                    {isMine ? (
+                      <button className="btn-danger" style={{ padding: '5px 12px', fontSize: '0.75rem' }} onClick={onCancel}>募集を解除</button>
+                    ) : (
+                      <button className="btn-primary" style={{ padding: '5px 12px', fontSize: '0.75rem' }} onClick={() => onJoin(room)}>参戦する</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    };
 
-      const me = users.find(u => u.name === myName);
-      const myLevel = me?.currentLevel || 'LEVEL0';
-
-      // Get count of Duo Sessions (Passed) for current level
-      const getDuoPassCount = (level) => {
-        return logs.filter(l => {
-          if (l['ユーザー名'] !== myName) return false;
-          if (l['合否'] !== '合格') return false;
-
+    // 3.2 Dungeon Map (Individual Node Rendering)
+    const DungeonMap = ({ users, logs, mapNodes, recruitmentRooms, myName, onBossClick, onStageSelect, onJoinRoom, onCancelRoom, onNodeSelect, currentLevel }) => {
+      const getStars = (l, s) => {
+        const stageLogs = logs.filter(log => {
+          if (log['ユーザー名'] !== myName || log['合否'] !== '合格') return false;
+          if (log['階層'] !== l) return false;
           try {
-            const detail = JSON.parse(l['詳細JSON'] || '{}');
-            const isDuoRoleplayer = detail.role === 'ROLEPLAYER';
-            return isDuoRoleplayer && (l['階層'] === level || !l['階層']);
+            const detail = JSON.parse(log['詳細JSON'] || '{}');
+            return detail.stage === s && (log['AI評価点'] >= 80 || (detail.R_phase_evaluation?.total_score >= 80));
           } catch (e) { return false; }
-        }).length;
+        });
+        return Math.min(3, stageLogs.length);
+      };
+
+      const getAssetUrl = (level, stage) => {
+        if (stage === 'BOSS') {
+          if (level === 'LEVEL3') return 'icon_boss.png';
+          if (level === 'LEVEL2') return 'icon_castle.png';
+          if (level === 'LEVEL1') return 'icon_fortress.png';
+          return 'icon_fortress.png';
+        }
+        if (level === 'LEVEL3') return 'icon_castle.png';
+        if (level === 'LEVEL2') return 'icon_fortress.png';
+        if (level === 'LEVEL1') return 'icon_village.png';
+        return 'icon_camp.png';
       };
 
       const usersByLevel = {};
       users.forEach(u => {
-        const lvl = (u.currentLevel || '').toUpperCase();
+        const lvl = (u.currentLevel || 'LEVEL0').toUpperCase();
         if (!usersByLevel[lvl]) usersByLevel[lvl] = [];
         usersByLevel[lvl].push(u);
       });
 
       return (
-        <div className="dungeon-map-container" style={{ display: 'flex', position: 'relative', width: '100%', height: '100vh', background: '#050505', overflow: 'hidden' }}>
-          {/* Test Mode Entry */}
-          <button className="nav-btn" onClick={() => onDuoJoin({ name: 'TEST_USER', isTest: true })} style={{ position: 'absolute', top: 20, right: 20, zIndex: 100, border: '1px solid #555', fontSize: '0.7rem', padding: '5px 10px' }}>
-            DEBUG: TEST MODE
-          </button>
+        <div className="dungeon-map-container" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#050505', overflowY: 'auto', padding: '20px' }}>
+          
+          <RecruitmentBoard rooms={recruitmentRooms} users={users} myName={myName} onJoin={onJoinRoom} onCancel={onCancelRoom} />
 
-          <div className="map-canvas" style={{ flex: 1 }}>
-            <div className="map-inner">
-              {MAP_NODES.map((node, idx) => {
-                const levelUsers = usersByLevel[node.level] || [];
-                const duoCount = getDuoPassCount(node.level);
-                const isCurrentLevel = node.level === myLevel;
-                // ★【一時的テスト用】本来は `duoCount >= 3` ですが、動作テストのため「自分がいる階層」なら常にボス戦を解放します
-                const isPassed = (isCurrentLevel) || (duoCount >= 3);
+          <div className="map-canvas-wrapper" style={{ 
+            position: 'relative', 
+            width: '100%', 
+            minHeight: '1200px', 
+            background: 'url(bg-mountain.png) no-repeat center center / cover',
+            borderRadius: '30px', 
+            border: '2px solid #222',
+            boxShadow: '0 0 40px rgba(0,0,0,0.8) inset',
+            padding: '40px'
+          }}>
+            {/* Background Grid */}
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'linear-gradient(#4facfe 1px, transparent 1px), linear-gradient(90deg, #4facfe 1px, transparent 1px)', backgroundSize: '60px 60px' }}></div>
+
+            <div className="map-inner" style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <style>{`
+                .map-node-wrapper:hover {
+                  z-index: 100 !important;
+                }
+                .users-hover-container {
+                  position: absolute;
+                  top: calc(100% + 56px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  z-index: 30;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                }
+                .users-hover-badge {
+                  background: rgba(0,255,153,0.15);
+                  padding: 4px 14px;
+                  border: 1px solid var(--color-primary);
+                  border-radius: 20px;
+                  font-size: 0.8rem;
+                  color: var(--color-primary);
+                  white-space: nowrap;
+                  box-shadow: 0 0 10px rgba(0,255,153,0.3);
+                  font-weight: bold;
+                  cursor: default;
+                  display: flex;
+                  align-items: center;
+                  gap: 5px;
+                  transition: all 0.2s;
+                  position: relative;
+                  z-index: 2;
+                }
+                .users-hover-badge:hover,
+                .users-hover-container:hover .users-hover-badge {
+                  background: var(--color-primary);
+                  color: black;
+                }
+                .users-hover-list {
+                  position: absolute;
+                  bottom: calc(100% + 8px);
+                  left: 50%;
+                  transform: translateX(-50%);
+                  max-height: 0;
+                  opacity: 0;
+                  overflow: hidden;
+                  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                  display: flex;
+                  flex-direction: column;
+                  gap: 4px;
+                  align-items: center;
+                  width: max-content;
+                  min-width: 100px;
+                  transform-origin: bottom center;
+                  pointer-events: none;
+                  z-index: 1;
+                }
+                .users-hover-container:hover .users-hover-list {
+                  max-height: 350px;
+                  opacity: 1;
+                  overflow-y: auto;
+                  pointer-events: auto;
+                  padding-bottom: 5px;
+                }
+              `}</style>
+              {mapNodes.map((node, idx) => {
+                const stars = getStars(node.level, node.stage);
+                
+                // Progression Logic
+                let isUnlocked = true;
+                const levelInt = parseInt(node.level?.replace('LEVEL', '') || '0');
+                const userLevelInt = parseInt(currentLevel?.replace('LEVEL', '') || '0');
+                
+                // 1. Current user level check
+                if (levelInt > userLevelInt) isUnlocked = false;
+                
+                // 2. Intra-level locking
+                if (isUnlocked) {
+                  if (node.stage === 'B') isUnlocked = getStars(node.level, 'A') >= 3;
+                  if (node.stage === 'C') isUnlocked = getStars(node.level, 'B') >= 3;
+                  if (node.stage === 'BOSS') isUnlocked = getStars(node.level, 'C') >= 3;
+                }
+
+                // Layout: Bottom up zigzag path
+                let finalX = node.x;
+                let finalY = node.y;
+                
+                const pathCoords = {
+                  'LEVEL0_A': { x: 25, y: 88 },
+                  'LEVEL0_B': { x: 50, y: 78 },
+                  'LEVEL1_A': { x: 75, y: 65 },
+                  'LEVEL1_B': { x: 60, y: 52 },
+                  'LEVEL1_C': { x: 35, y: 42 },
+                  'LEVEL2_A': { x: 25, y: 30 },
+                  'LEVEL2_BOSS': { x: 50, y: 22 },
+                  'LEVEL3_A': { x: 75, y: 12 },
+                  'LEVEL3_BOSS': { x: 50, y: 4 }
+                };
+                
+                const key = `${node.level}_${node.stage}`;
+                if (pathCoords[key]) {
+                  finalX = pathCoords[key].x;
+                  finalY = pathCoords[key].y;
+                } else if (node.x === 50 && node.y === 50) {
+                  finalY = 90 - (levelInt * 15);
+                  const stageMap = { 'A': 15, 'B': 35, 'C': 55, 'BOSS': 80 };
+                  finalX = stageMap[node.stage] || 10;
+                }
+
+                const levelUsers = usersByLevel[node.level]?.filter(u => {
+                  // If it's the current user, only show them on the node they are at or the latest available node?
+                  // For simplicity, we'll just show all users of that level at the "BOSS" or "A" node of that level.
+                  return node.stage === 'A'; // Show avatars only at the start of the level for now
+                }) || [];
 
                 return (
-                  <div key={idx} className="map-node" style={{ left: `${node.x}%`, top: `${node.y}%`, opacity: myLevel >= node.level ? 1 : 0.4 }}>
-                    <div className="boss-ui" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                      {isPassed && <div className="boss-label">BOSS UNLOCKED!</div>}
-                      {isPassed ? (
-                        <div className={`boss-avatar-img ${node.colorClass}`} onClick={() => isCurrentLevel && onNodeSelect(node)} style={{ width: '120px', height: '120px', borderRadius: '50%', border: '4px solid var(--color-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '2.4rem', animation: 'bg-pulse 2s infinite', zIndex: 5 }}>
-                          ⚔️
-                        </div>
-                      ) : (
-                        <div className="boss-avatar-img" onClick={() => isCurrentLevel && onNodeSelect(node)} style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#333', border: '4px solid #555', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isCurrentLevel ? 'pointer' : 'default', flexDirection: 'column', gap: '4px', opacity: 0.8, zIndex: 5 }}>
-                          <span style={{ fontSize: '2.4rem' }}>{isCurrentLevel ? '🛡️' : '🔒'}</span>
-                          {isCurrentLevel && (
-                            <div style={{ background: 'rgba(0,0,0,0.7)', padding: '2px 8px', borderRadius: '4px', marginTop: '4px' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#ffb3c6', fontWeight: 'bold' }}>AI合格 {duoCount}/3</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {isPassed && (
-                        <div style={{ fontSize: '1.2rem', background: 'var(--color-gold)', color: 'black', padding: '4px 12px', borderRadius: '8px', fontWeight: '900', whiteSpace: 'nowrap', zIndex: 10, marginTop: '-25px', marginBottom: '25px' }}>
-                          CHALLENGE
-                        </div>
-                      )}
-                      {!isPassed && <div style={{ height: '5px' }}></div>}
-                      <div className="boss-name-plate">{(isPassed || isCurrentLevel) ? node.bossName : '????'}</div>
+                  <div key={idx} className={`map-node-wrapper ${isUnlocked ? 'active' : 'locked'}`} style={{ 
+                    position: 'absolute', 
+                    left: `${finalX}%`, 
+                    top: `${finalY}%`, 
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: isUnlocked ? 10 : 1
+                  }}>
+                    <div 
+                      className={`map-node ${node.stage === 'BOSS' ? 'is-boss-node' : ''}`} 
+                      onClick={() => isUnlocked && onNodeSelect(node)}
+                      style={{ 
+                        width: node.stage === 'BOSS' ? '160px' : '120px',
+                        height: node.stage === 'BOSS' ? '160px' : '120px',
+                        cursor: isUnlocked ? 'pointer' : 'not-allowed',
+                        opacity: isUnlocked ? 1 : 0.4,
+                        filter: isUnlocked ? 'drop-shadow(0 0 10px rgba(0,255,153,0.4))' : 'grayscale(100%)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                      }}
+                    >
+                      <div className="node-icon-bg" style={{ 
+                        width: '100%', height: '100%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: node.stage === 'BOSS' ? '5rem' : '4rem',
+                        textShadow: isUnlocked ? '0 10px 20px rgba(0,0,0,0.8), 0 0 20px rgba(0,255,153,0.8)' : '0 10px 20px rgba(0,0,0,0.8)',
+                        position: 'relative'
+                      }}>
+                        {node.avatarUrl && isUnlocked ? (
+                          <img src={node.avatarUrl} style={{ width: '80%', height: '80%', objectFit: 'cover', borderRadius: '50%', border: '3px solid var(--color-primary)' }} />
+                        ) : (
+                          isUnlocked ? (
+                            <img 
+                              src={getAssetUrl(node.level, node.stage)} 
+                              style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                objectFit: 'cover', 
+                                borderRadius: '50%', 
+                                border: node.stage === 'BOSS' ? '3px solid var(--color-gold)' : '2px solid var(--color-primary)',
+                                boxShadow: node.stage === 'BOSS' ? '0 0 25px var(--color-gold)' : '0 0 15px var(--color-primary)',
+                              }} 
+                              alt="stage-icon"
+                            />
+                          ) : (
+                            <span style={{ transform: 'translateY(-10px)' }}>🔒</span>
+                          )
+                        )}
+                        {stars >= 3 && <div className="clear-check" style={{ top: 0, right: 0, transform: 'scale(1.5)', background: 'var(--color-primary)', borderRadius: '50%', padding: '2px 8px' }}>✓</div>}
+                      </div>
                     </div>
-                    <div className="avatar-container">
-                      {levelUsers.map(u => (
-                        <div key={u.id} className={`user-avatar-wrapper ${u.name === myName ? 'is-me' : ''}`}>
-                          <div className={`user-avatar ${u.name === myName ? 'is-me' : ''} ${u.isHosting ? 'is-hosting' : ''}`} title={u.name} onClick={() => u.isHosting ? onDuoJoin(u, 'JOIN') : onDuoJoin(u, 'HOST')}>
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', textAlign: 'center', lineHeight: '1.1', wordBreak: 'break-all', padding: '2px' }}>
-                              {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : Array.from(u.name).slice(0, 2).join('')}
-                            </div>
-                          </div>
-                        </div>
+
+                    <div className="node-stars" style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', display: 'flex', gap: '3px', zIndex: 15 }}>
+                      {[1, 2, 3].map(s => (
+                        <span key={s} style={{ color: stars >= s ? 'var(--color-gold)' : 'rgba(255,255,255,0.1)', fontSize: '14px', textShadow: '0 0 5px black' }}>★</span>
                       ))}
                     </div>
+
+                    <div className="node-title hover-glow" style={{ position: 'absolute', top: 'calc(100% + 22px)', left: '50%', transform: 'translateX(-50%)', marginTop: '2px', fontSize: '0.85rem', fontWeight: '900', color: isUnlocked ? 'white' : '#888', textAlign: 'center', whiteSpace: 'nowrap', background: 'rgba(0,10,5,0.85)', border: '1px solid var(--glass-border)', padding: '4px 12px', borderRadius: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.8)', zIndex: 15 }}>
+                      {node.bossName || '???'}
+                    </div>
+
+                    {/* Show level indicator for the first node of each level */}
+                    {node.stage === 'A' && (
+                      <div style={{ position: 'absolute', top: '-55px', left: '50%', transform: 'translateX(-50%)', color: '#ffea00', fontSize: '1.3rem', fontWeight: '900', letterSpacing: '4px', whiteSpace: 'nowrap', background: 'rgba(0,10,0,0.85)', padding: '6px 20px', borderRadius: '12px', border: '2px solid rgba(255,234,0,0.8)', boxShadow: '0 6px 15px rgba(0,0,0,0.9), 0 0 15px rgba(255,234,0,0.6)', zIndex: 20 }}>
+                        {node.level}
+                      </div>
+                    )}
+
+                    {/* Users at this level - Hover Nameplates */}
+                    {levelUsers.length > 0 && (
+                      <div className="users-hover-container">
+                        <div className="users-hover-badge">
+                          👥 {levelUsers.length}名
+                        </div>
+                        <div className="users-hover-list">
+                          {levelUsers.map(u => (
+                            <div key={u.id} className="hover-glow" style={{ background: 'rgba(0,20,10,0.95)', padding: '5px 12px', border: '1px solid rgba(0,255,153,0.5)', borderRadius: '4px', fontSize: '0.8rem', color: 'white', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.5)', fontWeight: 'bold' }}>
+                              {u.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
-            </div>
-          </div>
-
-          <div className="leaderboard-sidebar glass-container">
-            <h3 className="title-cyber" style={{ padding: '1.2rem', color: 'var(--color-primary)', borderBottom: '1px solid var(--glass-border)' }}>🏆 LEADERBOARD</h3>
-            <div className="leaderboard-content">
-              {[...users].sort((a, b) => b.exp - a.exp).map((u, i) => (
-                <div key={u.id} className={`lb-user-card ${u.name === myName ? 'is-me' : ''}`} onClick={() => u.name !== myName && onPlayerClick(u)} style={{ cursor: u.name !== myName ? 'pointer' : 'default' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><span style={{ color: 'var(--color-gold)', fontWeight: 'bold' }}>#{i + 1}</span> <span style={{ fontWeight: 'bold' }}>{u.name}</span></div>
-                    <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{u.exp}</span>
-                  </div>
-                  <div className="exp-container"><div className="exp-bar" style={{ width: `${Math.min(100, (u.exp % 1000) / 10)}%` }}></div></div>
-                  <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '4px' }}>📍 {u.currentLevel}</div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -797,7 +1232,7 @@
 
         // Skill calculation logic (Relation, Empathy, Hearing, Presentation, Closing)
         const myLogs = logs.filter(l => l['ユーザー名'] === myName);
-        
+
         const getAvg = (level, extractor) => {
           const levelLogs = myLogs.filter(l => (l['現在の階層'] === level || l['階層'] === level));
           if (levelLogs.length === 0) return 0;
@@ -805,7 +1240,7 @@
             try {
               const parsed = l['詳細JSON'] ? JSON.parse(l['詳細JSON']) : {};
               return extractor(l, parsed);
-            } catch(e) { return 0; }
+            } catch (e) { return 0; }
           });
           const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
           return (avg / 100) * 5; // Scale 0-100 to 0-5
@@ -870,7 +1305,7 @@
                     const bgColor = isGood ? 'rgba(0, 153, 255, 0.1)' : 'rgba(255, 0, 85, 0.05)';
                     const borderColor = isGood ? '#0099ff' : 'var(--color-secondary)';
                     const labelColor = isGood ? '#99ccff' : '#ffb3c6';
-                    
+
                     return (
                       <div key={idx} style={{ background: bgColor, borderLeft: `4px solid ${borderColor}`, padding: '10px 14px', borderRadius: '0 8px 8px 0', transition: 'all 0.2s' }} className="issue-card hover-glow">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -936,6 +1371,8 @@
       );
     };
 
+    // 5. Gacha Config (Removed)
+
     // 6. AI Result Modal
     const AIResultModal = ({ result, onClose }) => {
       if (!result) return null;
@@ -965,8 +1402,11 @@
     // --- MAIN APP COMPONENT ---
     const App = () => {
       const [currentView, setCurrentView] = useState('MAP');
+      const currentViewRef = useRef('MAP');
+      useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
       const [users, setUsers] = useState([]);
       const [logs, setLogs] = useState([]);
+      const [scenarios, setScenarios] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [myIdentity, setMyIdentity] = useState(null);
@@ -995,27 +1435,42 @@
           toastTimerRef.current = setTimeout(() => setShowToast(false), durationMs);
         }
       };
+      const handleUpdateMapNode = (level, stage, newNode) => {
+        setStages(prev => {
+          const idx = prev.findIndex(s => s.level === level && s.stage === stage);
+          if (idx > -1) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], ...newNode };
+            return next;
+          }
+          return [...prev, { level, stage, ...newNode }];
+        });
+      };
+
+      const handleSaveMapNodeToDB = async (node) => {
+        setIsSubmitting(true);
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'updateMasterStage', ...node })
+          });
+          const d = await res.json();
+          if (d.success) {
+            showInfoToast(`${node.level} ${node.stage} の設定を保存しました`);
+            fetchAllData();
+          }
+        } catch (e) { showErrorToast(e.message); }
+        setIsSubmitting(false);
+      };
+
       const [selectedBoss, setSelectedBoss] = useState(null);
-      const [selectedPlayer, setSelectedPlayer] = useState(null);
-      const [duoSession, setDuoSession] = useState(null); // { mode: 'HOST'|'JOIN', targetName: string }
+      const [duoSession, setDuoSession] = useState(null); // { mode: 'HOST'|'JOIN', targetName: string, level: string, stage: string }
       const [prompts, setPrompts] = useState([]);
-      const [mapNodes, setMapNodes] = useState([
-        { level: 'LEVEL0', bossName: '非言語', x: 30, y: 85, label: 'STAGE 1', colorClass: 'boss-l0', goals: '非言語コミュニケーションの基礎をマスターし、第一印象で信頼を勝ち取る。', quests: ['相手の目を見て挨拶する', '適切なリアクション（頷き・相槌）を3回以上行う', '笑顔を絶やさず会話を終える'] },
-        { level: 'LEVEL1', bossName: '関係構築', x: 70, y: 60, label: 'STAGE 2', colorClass: 'boss-l1', goals: '共感と称賛を駆使して、本音を話しやすい雰囲気（心理的安全性）を構築する。', quests: ['相手の話を最後まで遮らずに聞く', '具体的な事実に対して称賛を1回以上行う', '「それ分かります」等の共感を示す言葉を使う'] },
-        { level: 'LEVEL2', bossName: 'ヒアリング(SP)', x: 35, y: 35, label: 'STAGE 3', colorClass: 'boss-l2', goals: '顧客の課題（SP: 潜在課題）を特定するための深掘り質問を習得する。', quests: ['「なぜ？」を3回以上繰り返して背景を聞く', '現状の不満や困りごとを2つ以上聞き出す', '理想の状態（BEYOND）を言語化させる'] },
-        { level: 'LEVEL3', bossName: 'ヒアリング(IN)', x: 50, y: 10, label: 'STAGE 4', colorClass: 'boss-l3', goals: '経営層に対して価値を訴求するための、投資対効果（IN: 影響度）のヒアリングを行う。', quests: ['課題解決しなかった場合のリスクを確認する', '決裁権を持つ人物が誰かを確認する', '投資に対する期待効果（ROI）を握る'] }
-      ]);
+      const [stages, setStages] = useState([]);
+      const [recruitmentRooms, setRecruitmentRooms] = useState([]);
+      const [mapNodes, setMapNodes] = useState([]);
       const [selectedNode, setSelectedNode] = useState(null);
       const [aiResult, setAIResult] = useState(null);
-      // ★ カメラはロープレ中のみ起動するため、App側では保持しない
-
-      const handleSaveMapNode = (index, newNode) => {
-        const updated = [...mapNodes];
-        updated[index] = newNode;
-        setMapNodes(updated);
-        localStorage.setItem('sleg_map_nodes', JSON.stringify(updated));
-        showInfoToast('マップ情報を一時保存しました');
-      };
 
       const handleDuoChallenge = async (user, mode) => {
         if (user?.isTest) {
@@ -1023,150 +1478,259 @@
           setCurrentView('DUO_RECORD');
           return;
         }
+        // Direct invite remains as a legacy for BOSS/ADMIN? Or just remove.
+        // For now, let's keep it but it might lack stage info.
         setDuoSession({ mode, targetName: user.name });
         setCurrentView('DUO_RECORD');
       };
 
-      // Initialize: Load identity from localStorage
+      const handleCreateRoom = async (node, stage) => {
+        setIsSubmitting(true);
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'createRecruitmentRoom', hostName: myIdentity.name, level: node.level, stage: stage })
+          });
+          const d = await res.json();
+          if (d.success) {
+            showInfoToast(`ステージ ${stage} の募集を開始しました！`);
+            setDuoSession({ mode: 'HOST', targetName: 'WAITING', level: node.level, stage: stage });
+            setCurrentView('DUO_RECORD');
+          }
+        } catch (e) { showErrorToast(e.message); }
+        setIsSubmitting(false);
+      };
+
+      const handleCancelRoom = async () => {
+        setIsSubmitting(true);
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'stopHosting', userFullName: myIdentity.name })
+          });
+          const d = await res.json();
+          if (d.success) {
+            showInfoToast(`募集を解除しました`);
+            fetchAllData();
+          }
+        } catch (e) { showErrorToast(e.message); }
+        setIsSubmitting(false);
+      };
+
+      const handleJoinRoom = async (room) => {
+        setDuoSession({ mode: 'JOIN', targetName: room.hostName, level: room.level, stage: room.stage });
+        setCurrentView('DUO_RECORD');
+      };
+
+      const handleBossRequest = async (node) => {
+        setIsSubmitting(true);
+        try {
+          const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ 
+              action: 'notifyBossBattle', 
+              userFullName: myIdentity.name, 
+              level: node.level,
+              bossName: node.bossName
+            })
+          });
+          const d = await res.json();
+          if (d.success) {
+            showInfoToast('ボス戦の申し込みをSlackに通知しました！日程の連絡をお待ちください。');
+          }
+        } catch (e) { showErrorToast(e.message); }
+        setIsSubmitting(false);
+      };
+
+      const handleAIChallenge = (node) => {
+        alert('この階層をクリアするには、掲示板から募集に参加するか、自分で募集を出してください。');
+      };
+
       useEffect(() => {
         try {
           const saved = localStorage.getItem('sleg_identity');
           if (saved) {
-            setMyIdentity(JSON.parse(saved));
-            // カメラはロープレ開始時に取得するため、ここでは起動しない
+            const parsed = JSON.parse(saved);
+            setMyIdentity(parsed);
           }
-        } catch(e) {
-          localStorage.removeItem('sleg_identity');
-        }
+        } catch (e) { localStorage.removeItem('sleg_identity'); }
         fetchAllData();
-        const interval = setInterval(fetchAllData, 10000); // Poll every 10s
+        const interval = setInterval(fetchAllData, 10000);
         return () => clearInterval(interval);
       }, []);
 
       const fetchAllData = async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒でタイムアウト
+
         try {
-          const res = await fetch(`${GAS_URL}?_=${Date.now()}`);
+          console.log("Fetching data from GAS...");
+          const res = await fetch(`${GAS_URL}?_=${Date.now()}`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          
+          if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
           const data = await res.json();
+          
           if (data.users) {
-            const activeRooms = data.activeRooms || [];
+            const rooms = data.rooms || [];
+            const activeHostNames = rooms.map(r => r.hostName);
             const updatedUsers = data.users.map((u, i) => ({
               id: u['ユーザー名'] || `u${i}`, name: u['ユーザー名'] || 'Unknown',
               currentLevel: (u['現在の階層'] || 'LEVEL0'),
               email: u['メールアドレス'] || '', slackId: u['SlackID'] || '',
               role: u['権限'] || 'PLAYER',
-              exp: parseInt(u['総合EXP'] || 0), avatarUrl: u['アイコン画像 URL'] || null,
-              isHosting: activeRooms.includes(u['ユーザー名']),
+              exp: parseInt(u['総合EXP'] || 0), avatarUrl: u['アイコン画像URL'] || null,
+              isHosting: activeHostNames.includes(u['ユーザー名']),
               hasPassword: !!(u['パスワード'] && u['パスワード'].trim() !== '')
             }));
             setUsers(updatedUsers);
-
-            // ログイン中ユーザーの情報を最新に同期
+            
             if (myIdentity) {
               const freshMe = updatedUsers.find(u => u.name === myIdentity.name);
-              if (freshMe) {
-                // ロールや階層の変更を反映
-                if (freshMe.role !== myIdentity.role || freshMe.currentLevel !== myIdentity.currentLevel) {
-                  setMyIdentity(freshMe);
-                  localStorage.setItem('sleg_identity', JSON.stringify(freshMe));
-                }
+              if (freshMe && (freshMe.role !== myIdentity.role || freshMe.currentLevel !== myIdentity.currentLevel)) {
+                setMyIdentity(freshMe);
+                localStorage.setItem('sleg_identity', JSON.stringify(freshMe));
               }
             }
           }
-          if (data.prompts) setPrompts(data.prompts);
+          if (data.stages && Array.isArray(data.stages)) {
+            const mappedStages = data.stages.filter(s => s && s.level && s.stage).map(s => ({
+              ...s,
+              quests: typeof s.quests === 'string' ? s.quests.split('|') : (s.quests || []),
+              x: parseInt(s.x || 50), y: parseInt(s.y || 50)
+            }));
+
+            // MASTER画面表示中、または入力フォーカス中はDBからの同期をスキップして入力を保護
+            const isEditing = currentViewRef.current === 'MASTER' || 
+                             ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+            
+            if (!isEditing) {
+              setStages(mappedStages);
+              const allNodes = [...mappedStages].sort((a,b) => {
+                const lvlA = String(a.level || '');
+                const lvlB = String(b.level || '');
+                if (lvlA !== lvlB) return lvlA.localeCompare(lvlB);
+                return String(a.stage || '').localeCompare(String(b.stage || ''));
+              });
+              setMapNodes(allNodes);
+            }
+          }
+          if (data.rooms) setRecruitmentRooms(data.rooms);
           if (data.geminiKey) setGeminiKey(data.geminiKey);
+          if (data.scenarios) setScenarios(data.scenarios);
           setLogs(data.logs || []);
-        } catch (e) { console.error('Fetch Error:', e); }
-        setIsLoading(false);
+          console.log("Data fetch successful.");
+        } catch (e) {
+          console.error('Fetch Error:', e);
+          if (e.name === 'AbortError') showErrorToast("通信タイムアウト: GASの応答がありません");
+          else showErrorToast("データ取得失敗: " + e.message);
+        } finally {
+          setIsLoading(false);
+          clearTimeout(timeoutId);
+        }
       };
 
       const handleLogin = async (user, password) => {
-        // パスワード設定済ユーザーの場合は照合
         if (user.hasPassword) {
           try {
-            const res = await fetch(GAS_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ action: 'verifyPassword', name: user.name, password })
-            });
-            const d = await res.json();
-            if (!d.success) return false; // パスワード不一致
-          } catch (e) {
-            console.error('Password verify error:', e);
-            showErrorToast('認証エラー: ' + e.message);
-            return false;
-          }
+            const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'verifyPassword', name: user.name, password }) });
+            if (!(await res.json()).success) return false;
+          } catch (e) { showErrorToast(e.message); return false; }
         }
         setMyIdentity(user);
         localStorage.setItem('sleg_identity', JSON.stringify(user));
-        // カメラはロープレ開始時に取得するため、ここでは起動しない
+        return true;
       };
 
-      const logout = () => {
-        // 本番環境では誤操作防止に confirm が役立つが、
-        // テスト環境での自動化とUXを考慮し、ローカルストレージを削除してリロードする。
-        localStorage.removeItem('sleg_identity');
-        setMyIdentity(null);
-      };
+      const logout = () => { localStorage.removeItem('sleg_identity'); setMyIdentity(null); };
 
       const handleSaveUser = async (u) => {
         setIsSubmitting(true);
-        const payload = { action: 'saveUser', ...u };
-        // newPassword が入力されている場合はパスワードも四信
-        if (u.newPassword && u.newPassword.trim() !== '') {
-          payload.password = u.newPassword;
+        // 日本語ヘッダーへのマッピング
+        const payload = { 
+          action: 'saveUser', 
+          // 念のため旧英語キーも送信
+          name: u.name,
+          id: u.id,
+          currentLevel: u.currentLevel,
+          role: u.role,
+          email: String(u.email || ''),
+          slackId: String(u.slackId || ''),
+          avatarUrl: String(u.avatarUrl || ''),
+          exp: Number(u.exp || 0),
+          // 日本語キー
+          'ユーザー名': u.name,
+          '現在の階層': u.currentLevel,
+          '権限': u.role,
+          'メールアドレス': String(u.email || ''),
+          'SlackID': String(u.slackId || ''),
+          'アイコン画像URL': String(u.avatarUrl || ''),
+          '総合EXP': Number(u.exp || 0)
+        };
+        if (u.newPassword) payload.password = u.newPassword;
+        try {
+          const res = await fetch(GAS_URL, { 
+            method: 'POST', 
+            body: JSON.stringify(payload)
+          });
+          const d = await res.json();
+          if (d.success) {
+            showInfoToast('保存完了 ✅');
+            // Optimistically update the UI to prevent immediate reversion from stale GET requests
+            setUsers(prev => prev.map(user => user.id === u.id ? { ...user, ...u } : user));
+            if (myIdentity && myIdentity.name === u.name) {
+              const freshMe = { ...myIdentity, ...u };
+              setMyIdentity(freshMe);
+              localStorage.setItem('sleg_identity', JSON.stringify(freshMe));
+            }
+            
+            // Wait 2.5 seconds to ensure GAS Spreadsheet App flushes to disk before refetching
+            await new Promise(r => setTimeout(r, 2500));
+            await fetchAllData();
+            setIsSubmitting(false);
+            return true;
+          } else {
+            showErrorToast('エラー: ' + (d.error || '不明なエラーです。GAS側の保存に失敗しました。'));
+          }
+        } catch (e) {
+          showErrorToast('通信エラー: ' + e.message);
         }
-        delete payload.newPassword; // 好奇心から削除
-        const res = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-        const d = await res.json();
-        if (d.success) { showInfoToast('保存完了 ✅'); await fetchAllData(); return true; }
-        setIsSubmitting(false); return false;
+        setIsSubmitting(false);
+        return false;
       };
 
       const handleAddUser = async (name) => {
         setIsSubmitting(true);
-        try {
-          await fetch(GAS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain to avoid CORS preflight or parsing issues in GAS
-            body: JSON.stringify({ action: 'addUser', name })
-          });
-        } catch (err) {
-          console.error("Add user error:", err);
-        }
+        await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'addUser', name }) });
         await fetchAllData();
         setIsSubmitting(false);
       };
 
-      const handleSavePrompt = async (level, prompt) => {
+      const handleSaveScenario = async (scenario) => {
         setIsSubmitting(true);
-        const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'savePrompt', level, prompt }) });
-        const result = await res.json();
-        if (result.success) {
-          showInfoToast('プロンプトを更新しました ✅');
-          fetchAllData();
-        }
+        try {
+          const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveScenario', scenario }) });
+          const d = await res.json();
+          if (d.success) { showInfoToast('シナリオを保存しました ✅'); fetchAllData(); }
+          else { showErrorToast(d.error); }
+        } catch (e) { showErrorToast(e.message); }
         setIsSubmitting(false);
       };
 
-      const handleRequestSubmit = async (data) => {
-        const action = selectedBoss ? 'bossBattleRequest' : 'playerRequest';
-        const body = selectedBoss ?
-          { action, userFullName: myIdentity.name, bossName: data.targetName, date1: data.selectedSlot, message: data.message, label: data.label } :
-          { action, requesterName: myIdentity.name, targetName: data.targetName, selectedSlot: data.selectedSlot, message: data.message };
-
-        const res = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
-        const d = await res.json();
-        if (d.success) { alert('リクエスト完了！ SlackとGoogleカレンダーを確認してください。'); setSelectedBoss(null); setSelectedPlayer(null); }
-      };
-
-      const handleAIChallenge = (node) => {
-        // Single practice mode is removed. Progress is only through Duo.
-        alert('この階層をクリアするには、他のプレイヤーと対面ロープレを行い、3回合格してください。');
+      const handleDeleteScenario = async (id) => {
+        setIsSubmitting(true);
+        try {
+          const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteScenario', id }) });
+          const d = await res.json();
+          if (d.success) { showInfoToast('削除しました 🗑️'); fetchAllData(); }
+          else { showErrorToast(d.error); }
+        } catch (e) { showErrorToast(e.message); }
+        setIsSubmitting(false);
       };
 
       const onRecordingComplete = async (data) => {
         setIsSubmitting(true);
-        showInfoToast('動画をアップロードしています... (画面を閉じないでください)', 0);
+        showInfoToast('動画をアップロードしています...', 0);
 
         try {
           console.log(`[送信開始] 動画サイズ: ${(data.videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
@@ -1197,7 +1761,12 @@
             if (!geminiKey) throw new Error("Gemini APIキーが取得できませんでした。");
             showInfoToast('AIが動画を分析しています... (数十秒〜数分かかります)', 0);
 
-            const myPromptTemplate = prompts.find(p => p['階層'] === myIdentity?.currentLevel)?.['プロンプト'];
+            // 優先順位: 1. ステージ別プロンプト (MAP) 2. シナリオの悩み情報 3. デフォルト
+            const currentStage = stages.find(s => s.level === (duoSession?.level || myIdentity?.currentLevel) && s.stage === duoSession?.stage);
+            const stagePrompt = currentStage?.prompt;
+            const scenarioInfo = duoSession?.persona ? `今日のターゲット顧客: ${duoSession.persona.name} (${duoSession.persona.gender}, ${duoSession.persona.grade})\n顧客の状況・悩み: ${duoSession.persona.worry}` : '';
+            
+            const myPromptTemplate = stagePrompt || scenarioInfo || "あなたはセールスコーチです。";
 
             // TESTモード用プロンプト（話さなくてもOK・顔映るだけでパス）
             const testPrompt = `これはシステムの動作テスト用の録画です。映像が届いていれば内容は問いません。
@@ -1290,7 +1859,7 @@
               });
               generateData = await generateRes.json();
               // 高負荷エラー(503/overloaded)の場合はリトライ
-              if (generateData.error && (generateData.error.code === 503 || (generateData.error.message||'').toLowerCase().includes('high demand') || (generateData.error.message||'').toLowerCase().includes('overload'))) {
+              if (generateData.error && (generateData.error.code === 503 || (generateData.error.message || '').toLowerCase().includes('high demand') || (generateData.error.message || '').toLowerCase().includes('overload'))) {
                 if (attempt < maxRetry) {
                   setToastMessage(`⏳ AIが混み合っています。${attempt * 5}秒後に再試行します... (${attempt}/${maxRetry})`);
                   await new Promise(r => setTimeout(r, attempt * 5000));
@@ -1355,6 +1924,7 @@
 
       return (
         <React.Fragment>
+          <div className="background-animation"></div>
           <header className="nav-header glass-container">
             <h1 className="title-cyber" style={{ margin: 0, fontSize: '1.4rem' }}>SLEG <span style={{ color: 'var(--color-primary)' }}>SALES</span> DUNGEON</h1>
             <div className="nav-links">
@@ -1365,29 +1935,30 @@
               <button className="nav-btn" onClick={logout} style={{ opacity: 0.6, fontSize: '0.8rem' }}>LOGOUT</button>
             </div>
 
-            {/* DUO Invite Notification */}
-            {(() => {
-              const host = users.find(u => u.isHosting && u.name !== myIdentity.name);
-              if (host) {
-                return (
-                  <div className="invite-notification" onClick={() => handleDuoChallenge(host, 'JOIN')}>
-                    ⚔️ {host.name}からDuoロープレの招待が届いています！ [参加する]
-                  </div>
-                );
-              }
-              const meHosting = users.find(u => u.isHosting && u.name === myIdentity.name);
-              if (meHosting) {
-                return (
-                  <div className="invite-notification" style={{ background: 'var(--color-primary)', color: 'black' }}>
-                    📡 あなたは現在Duoロープレを募集中です...
-                  </div>
-                );
-              }
-            })()}
+            {/* DUO Invite Notification (Removed) */}
           </header>
 
           <main className="app-content">
-            {currentView === 'MAP' && <DungeonMap users={users} logs={logs} mapNodes={mapNodes} myName={myIdentity.name} onBossClick={(b) => { setSelectedBoss(b); setCurrentView('BATTLE'); }} onPlayerClick={(u) => handleDuoChallenge(u, 'HOST')} onAIChallenge={handleAIChallenge} onDuoJoin={handleDuoChallenge} onNodeSelect={setSelectedNode} />}
+            {currentView === 'MAP' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px', height: '100%', width: '100%', maxWidth: '1400px', margin: '0 auto', boxSizing: 'border-box' }}>
+                <DungeonMap users={users} logs={logs} mapNodes={mapNodes} recruitmentRooms={recruitmentRooms} myName={myIdentity.name} onBossClick={(b) => { setSelectedBoss(b); setCurrentView('BATTLE'); }} onStageSelect={handleCreateRoom} onJoinRoom={handleJoinRoom} onCancelRoom={handleCancelRoom} onNodeSelect={setSelectedNode} selectedNode={selectedNode} currentLevel={myIdentity.currentLevel} />
+                <div className="leaderboard-sidebar glass-container" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' }}>
+                  <h3 className="title-cyber" style={{ padding: '1.2rem', color: 'var(--color-primary)', borderBottom: '1px solid var(--glass-border)', margin: 0 }}>🏆 LEADERBOARD</h3>
+                  <div className="leaderboard-content" style={{ flex: 1, overflowY: 'auto' }}>
+                    {[...users].sort((a, b) => b.exp - a.exp).map((u, i) => (
+                      <div key={u.id} className={`lb-user-card ${u.name === myIdentity.name ? 'is-me' : ''}`}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div><span style={{ color: 'var(--color-gold)', fontWeight: 'bold' }}>#{i + 1}</span> <span style={{ fontWeight: 'bold' }}>{u.name}</span></div>
+                          <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{u.exp}</span>
+                        </div>
+                        <div className="exp-container"><div className="exp-bar" style={{ width: `${Math.min(100, (u.exp % 1000) / 10)}%` }}></div></div>
+                        <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '4px' }}>📍 {u.currentLevel}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             {currentView === 'STATS' && <StatsPage logs={logs} users={users} myName={myIdentity.name} onSelectLog={(log) => {
               if (log['詳細JSON']) {
                 try {
@@ -1395,8 +1966,8 @@
                 } catch (e) { console.error('Failed to parse log JSON', e); }
               }
             }} />}
-            {currentView === 'MASTER' && <MasterAdminPage users={users} mapNodes={mapNodes} prompts={prompts} onSaveUser={handleSaveUser} onAddUser={handleAddUser} onSaveMapNode={handleSaveMapNode} onSavePrompt={handleSavePrompt} onDuoChallenge={handleDuoChallenge} isSubmitting={isSubmitting} />}
-            {currentView === 'DUO_RECORD' && <DuoRecordingView userFullName={myIdentity.name} mode={duoSession?.mode} targetName={duoSession?.targetName} onComplete={onRecordingComplete} onCancel={async () => {
+            {currentView === 'MASTER' && <MasterAdminPage users={users} stages={stages} scenarios={scenarios} onSaveUser={handleSaveUser} onAddUser={handleAddUser} onSaveMapNode={handleUpdateMapNode} onSaveMapNodeToDB={handleSaveMapNodeToDB} onSaveScenario={handleSaveScenario} onDeleteScenario={handleDeleteScenario} onDuoChallenge={handleDuoChallenge} isSubmitting={isSubmitting} />}
+            {currentView === 'DUO_RECORD' && <DuoRecordingView userFullName={myIdentity.name} mode={duoSession?.mode} targetName={duoSession?.targetName} scenarios={scenarios} onComplete={onRecordingComplete} onCancel={async () => {
               if (duoSession?.mode === 'HOST') {
                 await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'stopHosting', userFullName: myIdentity.name }) });
               }
@@ -1429,15 +2000,15 @@
                   body: new URLSearchParams({ payload: JSON.stringify(savePayload) })
                 });
                 const result = await res.json();
-                if(result.success) {
+                if (result.success) {
                   showInfoToast(d.isLevelUp ? '✨ レベルアップしました！新しい階層が解放されます！' : '記録を保存しました ✅');
                   // Level Up の場合、フロント側でも即時反映
                   if (d.isLevelUp) {
                     const newIdentity = { ...myIdentity };
                     // 簡易的な階層インクリメント (LEVEL0 -> LEVEL1)
                     if (d.level) {
-                       const num = parseInt(d.level.replace('LEVEL', '')) || 0;
-                       newIdentity.currentLevel = `LEVEL${num + 1}`;
+                      const num = parseInt(d.level.replace('LEVEL', '')) || 0;
+                      newIdentity.currentLevel = `LEVEL${num + 1}`;
                     }
                     setMyIdentity(newIdentity);
                     localStorage.setItem('sleg_identity', JSON.stringify(newIdentity));
@@ -1447,26 +2018,38 @@
                 } else {
                   alert("エラー: " + result.error);
                 }
-              } catch(e) { showErrorToast(e.message); }
+              } catch (e) { showErrorToast(e.message); }
               setShowToast(false);
               setIsSubmitting(false);
             }} isSubmitting={isSubmitting} />}
           </main>
 
-          <footer style={{ position: 'fixed', bottom: '10px', left: '10px', fontSize: '0.8rem', color: '#555', zIndex: 100 }}>
-            PLAYER: <span style={{ color: 'var(--color-primary)' }}>{myIdentity.name}</span> {isBoss && <span className="status-badge status-pending" style={{ marginLeft: '10px', verticalAlign: 'middle' }}>BOSS</span>}
+          <footer style={{ position: 'fixed', bottom: '10px', left: '10px', right: '10px', fontSize: '0.8rem', color: '#555', zIndex: 100, display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+            <div style={{ marginRight: '15px' }}>
+              PLAYER: <span style={{ color: 'var(--color-primary)' }}>{myIdentity?.name || 'GUEST'}</span> {isBoss && <span className="status-badge status-pending" style={{ marginLeft: '10px', verticalAlign: 'middle' }}>BOSS</span>}
+            </div>
+            {/* 近くにいるプレイヤーなどのアイコンがここに追加される場合、flex-wrapで折り返されます */}
           </footer>
 
           {selectedNode && (
             <StageDetailModal
               node={selectedNode}
-              logs={logs}
-              myName={myIdentity.name}
               onClose={() => setSelectedNode(null)}
-              onDuoStart={() => { setSelectedNode(null); handleDuoChallenge(null, 'HOST'); }}
-              onBossStart={() => { setSelectedBoss(selectedNode); setCurrentView('BATTLE'); setSelectedNode(null); }}
+              logs={logs}
+              onDuoStart={(n) => {
+                handleCreateRoom(n, n.label || n.stage);
+                setSelectedNode(null);
+              }}
+              onBossStart={(n) => {
+                setSelectedBoss(n);
+                setCurrentView('BATTLE');
+                setSelectedNode(null);
+              }}
+              onBossRequest={handleBossRequest}
+              myName={myIdentity.name}
             />
           )}
+
           {aiResult && <AIResultModal result={aiResult} onClose={() => setAIResult(null)} />}
           <div className={`toast ${showToast ? 'show' : ''} ${isErrorToast ? 'is-error' : ''}`} style={{ position: 'fixed' }}>
             {isErrorToast && (
